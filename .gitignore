@@ -1,0 +1,7 @@
+.idea
+data/ABIDE/functionals
+out/*.xlsx
+out/*.png
+*.hdf5
+*.pkl
+test.py
