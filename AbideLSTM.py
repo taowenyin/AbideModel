@@ -50,7 +50,8 @@ def collate_fn(data):
     batch_data_x_pack = nn.utils.rnn.pack_padded_sequence(batch_data_x_pad,
                                                           batch_data_length, batch_first=True, enforce_sorted=False)
 
-    return batch_data_x_pack, torch.from_numpy(np.array(batch_data_y))
+    return batch_data_x_pad, torch.from_numpy(np.array(batch_data_y))
+    # return batch_data_x_pack, torch.from_numpy(np.array(batch_data_y))
 
 
 if __name__ == '__main__':
@@ -86,7 +87,7 @@ if __name__ == '__main__':
     # 学习率
     learning_rate = 0.001
     # LSTM隐藏层数量
-    lstm_hidden_num = 64
+    lstm_hidden_num = 256
     # LSTM输出层数量
     lstm_output_num = 2
     # LSTM层数量
@@ -99,11 +100,17 @@ if __name__ == '__main__':
         data_item_y = hdf5["patients"][i].attrs["y"]
         dataset_x.append(data_item_x)
         dataset_y.append(data_item_y)
+
+    # 把所有数据增加padding
+    dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0)
+
     train_x, test_x, train_y, test_y = train_test_split(dataset_x, dataset_y, test_size=0.3, shuffle=True)
     abideData_train = AbideData(train_x, train_y)
     abideData_test = AbideData(test_x, test_y)
-    train_loader = DataLoader(dataset=abideData_train, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
-    test_loader = DataLoader(dataset=abideData_test, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
+    # train_loader = DataLoader(dataset=abideData_train, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
+    # test_loader = DataLoader(dataset=abideData_test, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
+    train_loader = DataLoader(dataset=abideData_train, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(dataset=abideData_test, batch_size=batch_size, shuffle=False)
 
     # 创建LSTM模型
     model = LSTMModel(train_x[0].shape[1], lstm_hidden_num, lstm_output_num, lstm_layers_num)

@@ -26,7 +26,8 @@ class LSTMModel(nn.Module):
 
     def forward(self, input_x):
         # 获得数据的维度
-        data_dim = input_x.data.shape[1]
+        # data_dim = input_x.data.shape[1]
+        data_dim = input_x.data.shape[0]
 
         # 初始化
         hidden = torch.zeros(self.num_layers, data_dim, self.hidden_size)
@@ -37,7 +38,7 @@ class LSTMModel(nn.Module):
             cell = cell.cuda()
 
         output, (hidden_n, cell_n) = self.lstm(input_x, (hidden, cell))
-        output, output_length = nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
+        # output, output_length = nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
 
         output = output[:, -1, :]
         output = self.fc(output)
