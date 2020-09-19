@@ -27,6 +27,7 @@ from model.LSTMModel import LSTMModel
 from torch import nn
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder
 from data.ABIDE.AbideData import AbideData
 
 
@@ -99,7 +100,7 @@ if __name__ == '__main__':
     # LSTM隐藏层数量
     lstm_hidden_num = 256
     # LSTM输出层数量
-    lstm_output_num = 2
+    lstm_output_num = 1
     # LSTM层数量
     lstm_layers_num = 2
 
@@ -111,10 +112,13 @@ if __name__ == '__main__':
         dataset_x.append(data_item_x)
         dataset_y.append(data_item_y)
 
+    # # 标签进行one-hot编码
+    # one_hot = OneHotEncoder(sparse=False)
+    # dataset_y = np.array(one_hot.fit_transform(np.array(dataset_y).reshape(-1, 1)), dtype=np.int)
+
     # 把所有数据增加padding
     dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0)
-
-    a = dataset_x.numpy()
+    dataset_y = np.array(dataset_y, dtype=np.float32).reshape(-1, 1)
 
     train_x, test_x, train_y, test_y = train_test_split(dataset_x, dataset_y, test_size=0.3, shuffle=True)
     abideData_train = AbideData(train_x, train_y)
@@ -128,21 +132,23 @@ if __name__ == '__main__':
     model = LSTMModel(train_x[0].shape[1], lstm_hidden_num, lstm_output_num, lstm_layers_num)
     if gpu_status:
         model = model.cuda()
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     # 开启训练
     model.train()
     total_step = len(train_loader)
     # 初始化Hidden和Cell
-    hidden_cell = model.init_hidden_cell(batch_size)
+    (hidden, cell) = model.init_hidden_cell(batch_size)
     for epoch in range(EPOCHS):
         for i, (data_x, data_y) in enumerate(train_loader):
             if gpu_status:
                 data_x = data_x.cuda()
                 data_y = data_y.cuda()
-            hidden_cell = repackage_hidden(hidden_cell)
-            output, hidden_cell = model(data_x, hidden_cell)
+            if data_x.shape[0] != batch_size:
+                continue
+            (hidden, cell) = repackage_hidden((hidden, cell))
+            output, (hidden, cell) = model(data_x, hidden, cell)
             loss = criterion(output, data_y)
             optimizer.zero_grad()
             loss.backward()

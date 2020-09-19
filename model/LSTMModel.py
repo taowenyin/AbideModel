@@ -37,12 +37,12 @@ class LSTMModel(nn.Module):
 
         return hidden, cell
 
-    def forward(self, input_x, hidden_cell):
-        output, hidden_cell = self.lstm(input_x, hidden_cell)
+    def forward(self, input_x, hidden, cell):
+        output, (hidden, cell) = self.lstm(input_x, (hidden, cell))
         # output, output_length = nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
 
         # 提取最后一个时间节点的数据
         output = output[:, -1, :]
         output = self.decoder(output)
         output = self.softmax(output)
-        return output, hidden_cell
+        return output, (hidden, cell)
