@@ -132,7 +132,7 @@ if __name__ == '__main__':
     model = LSTMModel(train_x[0].shape[1], lstm_hidden_num, lstm_output_num, lstm_layers_num)
     if gpu_status:
         model = model.cuda()
-    criterion = nn.BCELoss()
+    criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     # 开启训练
