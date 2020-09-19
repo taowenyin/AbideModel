@@ -1,6 +1,7 @@
 import torch
 
 from torch import nn
+import torch.nn.functional as F
 
 
 class LSTMModel(nn.Module):
@@ -15,32 +16,33 @@ class LSTMModel(nn.Module):
         # 创建模型
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
         # 创建全连接层
-        self.fc = nn.Linear(hidden_size, output_size)
+        self.decoder = nn.Linear(hidden_size, output_size)
         # 设置激活函数
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.LogSoftmax(dim=1)
 
         if torch.cuda.is_available():
             self.gpu_status = True
         else:
             self.gpu_status = False
 
-    def forward(self, input_x):
-        # 获得数据的维度
-        # data_dim = input_x.data.shape[1]
-        data_dim = input_x.data.shape[0]
-
-        # 初始化
-        hidden = torch.zeros(self.num_layers, data_dim, self.hidden_size)
-        cell = torch.zeros(self.num_layers, data_dim, self.hidden_size)
+    # 初始化Hidden和Cell
+    def init_hidden_cell(self, batch_size):
+        weight = next(self.parameters())
+        hidden = weight.new_zeros(self.num_layers, batch_size, self.hidden_size)
+        cell = weight.new_zeros(self.num_layers, batch_size, self.hidden_size)
 
         if self.gpu_status:
             hidden = hidden.cuda()
             cell = cell.cuda()
 
-        output, (hidden_n, cell_n) = self.lstm(input_x, (hidden, cell))
+        return hidden, cell
+
+    def forward(self, input_x, hidden_cell):
+        output, hidden_cell = self.lstm(input_x, hidden_cell)
         # output, output_length = nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
 
+        # 提取最后一个时间节点的数据
         output = output[:, -1, :]
-        output = self.fc(output)
+        output = self.decoder(output)
         output = self.softmax(output)
-        return output, (hidden_n, cell_n)
+        return output, hidden_cell

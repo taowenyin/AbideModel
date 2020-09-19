@@ -54,6 +54,16 @@ def collate_fn(data):
     # return batch_data_x_pack, torch.from_numpy(np.array(batch_data_y))
 
 
+# 分离Hidden
+def repackage_hidden(h):
+    """Wraps hidden states in new Tensors, to detach them from their history."""
+
+    if isinstance(h, torch.Tensor):
+        return h.detach()
+    else:
+        return tuple(repackage_hidden(v) for v in h)
+
+
 if __name__ == '__main__':
     # 开始计时
     start = time.process_time()
@@ -96,13 +106,15 @@ if __name__ == '__main__':
     # 构建完整数据集
     hdf5_dataset = hdf5["patients"]
     for i in hdf5_dataset.keys():
-        data_item_x = torch.from_numpy(np.array(hdf5["patients"][i]['cc200']))
+        data_item_x = torch.from_numpy(np.array(hdf5["patients"][i]['cc200'])).float()
         data_item_y = hdf5["patients"][i].attrs["y"]
         dataset_x.append(data_item_x)
         dataset_y.append(data_item_y)
 
     # 把所有数据增加padding
     dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0)
+
+    a = dataset_x.numpy()
 
     train_x, test_x, train_y, test_y = train_test_split(dataset_x, dataset_y, test_size=0.3, shuffle=True)
     abideData_train = AbideData(train_x, train_y)
@@ -122,12 +134,15 @@ if __name__ == '__main__':
     # 开启训练
     model.train()
     total_step = len(train_loader)
+    # 初始化Hidden和Cell
+    hidden_cell = model.init_hidden_cell(batch_size)
     for epoch in range(EPOCHS):
         for i, (data_x, data_y) in enumerate(train_loader):
             if gpu_status:
-                data_x = data_x.float().cuda()
+                data_x = data_x.cuda()
                 data_y = data_y.cuda()
-            output, (hidden_n, cell_n) = model(data_x)
+            hidden_cell = repackage_hidden(hidden_cell)
+            output, hidden_cell = model(data_x, hidden_cell)
             loss = criterion(output, data_y)
             optimizer.zero_grad()
             loss.backward()
@@ -144,7 +159,7 @@ if __name__ == '__main__':
     total = 0
     for i, (data_x, data_y) in enumerate(test_loader):
         if gpu_status:
-            data_x = data_x.float().cuda()
+            data_x = data_x.cuda()
             data_y = data_y.cuda()
         output, (hidden_n, cell_n) = model(data_x)
         # 获得预测值
