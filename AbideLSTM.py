@@ -25,6 +25,7 @@ import time
 from docopt import docopt
 from model.LSTMModel import LSTMModel
 from torch import nn
+from torch.nn.modules import NLLLoss
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
@@ -55,7 +56,7 @@ def collate_fn(data):
     # return batch_data_x_pack, torch.from_numpy(np.array(batch_data_y))
 
 
-# 分离Hidden
+# 重新打包Hidden和Cell
 def repackage_hidden(h):
     """Wraps hidden states in new Tensors, to detach them from their history."""
 
@@ -70,6 +71,9 @@ if __name__ == '__main__':
     start = time.process_time()
 
     arguments = docopt(__doc__)
+
+    # 判断是否使用GPU
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if torch.cuda.is_available():
         gpu_status = True
@@ -100,14 +104,14 @@ if __name__ == '__main__':
     # LSTM隐藏层数量
     lstm_hidden_num = 256
     # LSTM输出层数量
-    lstm_output_num = 1
+    lstm_output_num = 2
     # LSTM层数量
-    lstm_layers_num = 2
+    lstm_layers_num = 4
 
     # 构建完整数据集
     hdf5_dataset = hdf5["patients"]
     for i in hdf5_dataset.keys():
-        data_item_x = torch.from_numpy(np.array(hdf5["patients"][i]['cc200'])).float()
+        data_item_x = torch.from_numpy(np.array(hdf5["patients"][i]['cc200'], dtype=np.float32))
         data_item_y = hdf5["patients"][i].attrs["y"]
         dataset_x.append(data_item_x)
         dataset_y.append(data_item_y)
@@ -117,8 +121,8 @@ if __name__ == '__main__':
     # dataset_y = np.array(one_hot.fit_transform(np.array(dataset_y).reshape(-1, 1)), dtype=np.int)
 
     # 把所有数据增加padding
-    dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0)
-    dataset_y = np.array(dataset_y, dtype=np.float32).reshape(-1, 1)
+    dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0).to(device).requires_grad_()
+    dataset_y = torch.tensor(dataset_y, dtype=torch.long).to(device)
 
     train_x, test_x, train_y, test_y = train_test_split(dataset_x, dataset_y, test_size=0.3, shuffle=True)
     abideData_train = AbideData(train_x, train_y)
@@ -129,10 +133,8 @@ if __name__ == '__main__':
     test_loader = DataLoader(dataset=abideData_test, batch_size=batch_size, shuffle=False)
 
     # 创建LSTM模型
-    model = LSTMModel(train_x[0].shape[1], lstm_hidden_num, lstm_output_num, lstm_layers_num)
-    if gpu_status:
-        model = model.cuda()
-    criterion = nn.BCEWithLogitsLoss()
+    model = LSTMModel(train_x[0].shape[1], lstm_hidden_num, lstm_output_num, lstm_layers_num).to(device)
+    criterion = NLLLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     # 开启训练
@@ -142,9 +144,6 @@ if __name__ == '__main__':
     (hidden, cell) = model.init_hidden_cell(batch_size)
     for epoch in range(EPOCHS):
         for i, (data_x, data_y) in enumerate(train_loader):
-            if gpu_status:
-                data_x = data_x.cuda()
-                data_y = data_y.cuda()
             if data_x.shape[0] != batch_size:
                 continue
             (hidden, cell) = repackage_hidden((hidden, cell))
