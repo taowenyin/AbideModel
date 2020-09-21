@@ -66,6 +66,11 @@ def repackage_hidden(h):
         return tuple(repackage_hidden(v) for v in h)
 
 
+# https://www.cnblogs.com/kamekin/p/10163743.
+# https://www.jianshu.com/p/3f35e555d5ba
+# https://blog.csdn.net/junjun150013652/article/details/81274958
+
+
 if __name__ == '__main__':
     # 开始计时
     start = time.process_time()
