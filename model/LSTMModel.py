@@ -1,9 +1,8 @@
 import torch
+import torch.nn.modules as modules
 
-from torch.nn.modules import LSTM, Linear, LogSoftmax, Dropout, Module
 
-
-class LSTMModel(Module):
+class LSTMModel(modules.Module):
     def __init__(self, input_size, hidden_size, output_size, num_layers=1, dropout=0.5):
         super(LSTMModel, self).__init__()
 
@@ -13,12 +12,12 @@ class LSTMModel(Module):
         self.num_layers = num_layers
 
         # 创建模型
-        self.rnn = LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=dropout)
-        self.drop = Dropout(dropout)
+        self.rnn = modules.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.drop = modules.Dropout(dropout)
         # 创建全连接层
-        self.fc = Linear(hidden_size, output_size)
+        self.fc = modules.Linear(hidden_size, output_size)
         # 设置激活函数
-        self.activation = LogSoftmax(dim=1)
+        self.activation = modules.LogSoftmax(dim=1)
 
     # 初始化Hidden和Cell
     def init_hidden_cell(self, batch_size):
@@ -41,5 +40,5 @@ class LSTMModel(Module):
         # 提取最后一个时间节点的数据
         # output = output.view(-1, self.output_size)
         output = output[:, -1, :]
-        # output = self.activation(output)
+        output = self.activation(output)
         return output, (hidden, cell)

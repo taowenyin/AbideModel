@@ -129,8 +129,8 @@ if __name__ == '__main__':
     abideData_test = AbideData(test_x, test_y)
     # train_loader = DataLoader(dataset=abideData_train, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
     # test_loader = DataLoader(dataset=abideData_test, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
-    train_loader = DataLoader(dataset=abideData_train, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(dataset=abideData_test, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(dataset=abideData_train, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(dataset=abideData_test, batch_size=batch_size, shuffle=True)
 
     # 创建LSTM模型
     model = LSTMModel(train_x[0].shape[1], lstm_hidden_num, lstm_output_num, lstm_layers_num).to(device)
