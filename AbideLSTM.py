@@ -49,8 +49,8 @@ def collate_fn(data):
     # 增加数据padding
     batch_data_x_pad = nn.utils.rnn.pad_sequence(batch_data_x, batch_first=True, padding_value=0)
     # 增加数据pack
-    batch_data_x_pack = nn.utils.rnn.pack_padded_sequence(batch_data_x_pad,
-                                                          batch_data_length, batch_first=True, enforce_sorted=False)
+    batch_data_x_pack = nn.utils.rnn.pack_padded_sequence(
+        batch_data_x_pad, batch_data_length, batch_first=True, enforce_sorted=False)
 
     return batch_data_x_pad, torch.from_numpy(np.array(batch_data_y))
     # return batch_data_x_pack, torch.from_numpy(np.array(batch_data_y))
@@ -147,9 +147,9 @@ if __name__ == '__main__':
             if data_x.shape[0] != batch_size:
                 continue
             (hidden, cell) = repackage_hidden((hidden, cell))
+            optimizer.zero_grad()
             output, (hidden, cell) = model(data_x, hidden, cell)
             loss = criterion(output, data_y)
-            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
