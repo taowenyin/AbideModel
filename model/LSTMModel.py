@@ -41,5 +41,5 @@ class LSTMModel(Module):
         # 提取最后一个时间节点的数据
         # output = output.view(-1, self.output_size)
         output = output[:, -1, :]
-        output = self.activation(output)
+        # output = self.activation(output)
         return output, (hidden, cell)

@@ -25,7 +25,7 @@ import time
 from docopt import docopt
 from model.LSTMModel import LSTMModel
 from torch import nn
-from torch.nn.modules import NLLLoss
+from torch.nn.modules import NLLLoss, CrossEntropyLoss
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
@@ -121,7 +121,7 @@ if __name__ == '__main__':
     # dataset_y = np.array(one_hot.fit_transform(np.array(dataset_y).reshape(-1, 1)), dtype=np.int)
 
     # 把所有数据增加padding
-    dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0).to(device).requires_grad_()
+    dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0).to(device)
     dataset_y = torch.tensor(dataset_y, dtype=torch.long).to(device)
 
     train_x, test_x, train_y, test_y = train_test_split(dataset_x, dataset_y, test_size=0.3, shuffle=True)
@@ -134,7 +134,7 @@ if __name__ == '__main__':
 
     # 创建LSTM模型
     model = LSTMModel(train_x[0].shape[1], lstm_hidden_num, lstm_output_num, lstm_layers_num).to(device)
-    criterion = NLLLoss()
+    criterion = CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     # 开启训练
@@ -157,22 +157,22 @@ if __name__ == '__main__':
                 print('Train Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(
                     epoch + 1, EPOCHS, i + 1, total_step, loss))
 
-    # 关闭反向传播
-    model.eval()
-    total_step = len(test_loader)
-    correct = 0
-    total = 0
-    for i, (data_x, data_y) in enumerate(test_loader):
-        if gpu_status:
-            data_x = data_x.cuda()
-            data_y = data_y.cuda()
-        output, (hidden_n, cell_n) = model(data_x)
-        # 获得预测值
-        _, predicted = torch.max(output.data, 1)
-        total += data_y.size(0)
-        correct += (predicted == data_y).sum().item()
-
-    print('Test Accuracy of the model on the test data: {:.2f} %'.format(100 * correct / total))
-
-    end = time.process_time()
-    print('Running time: {:.2f} Seconds'.format((end - start)))
+    # # 关闭反向传播
+    # model.eval()
+    # total_step = len(test_loader)
+    # correct = 0
+    # total = 0
+    # for i, (data_x, data_y) in enumerate(test_loader):
+    #     if gpu_status:
+    #         data_x = data_x.cuda()
+    #         data_y = data_y.cuda()
+    #     output, (hidden_n, cell_n) = model(data_x)
+    #     # 获得预测值
+    #     _, predicted = torch.max(output.data, 1)
+    #     total += data_y.size(0)
+    #     correct += (predicted == data_y).sum().item()
+    #
+    # print('Test Accuracy of the model on the test data: {:.2f} %'.format(100 * correct / total))
+    #
+    # end = time.process_time()
+    # print('Running time: {:.2f} Seconds'.format((end - start)))
