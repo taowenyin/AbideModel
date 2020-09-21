@@ -1,5 +1,6 @@
 .idea
 data/ABIDE/functionals
+data/MNIST
 out/*.xlsx
 out/*.png
 *.hdf5

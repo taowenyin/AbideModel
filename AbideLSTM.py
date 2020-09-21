@@ -23,7 +23,7 @@ import utils.abide.prepare_utils as PrepareUtils
 import time
 
 from docopt import docopt
-from model.LSTMModel import LSTMModel
+from model.RNNModel import RNNModel
 from torch import nn
 from torch.nn.modules import NLLLoss, CrossEntropyLoss
 from torch.utils.data import DataLoader
@@ -106,7 +106,7 @@ if __name__ == '__main__':
     # LSTM输出层数量
     lstm_output_num = 2
     # LSTM层数量
-    lstm_layers_num = 4
+    lstm_layers_num = 2
 
     # 构建完整数据集
     hdf5_dataset = hdf5["patients"]
@@ -121,8 +121,8 @@ if __name__ == '__main__':
     # dataset_y = np.array(one_hot.fit_transform(np.array(dataset_y).reshape(-1, 1)), dtype=np.int)
 
     # 把所有数据增加padding
-    dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0).to(device)
-    dataset_y = torch.tensor(dataset_y, dtype=torch.long).to(device)
+    dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0)
+    dataset_y = torch.tensor(dataset_y, dtype=torch.long)
 
     train_x, test_x, train_y, test_y = train_test_split(dataset_x, dataset_y, test_size=0.3, shuffle=True)
     abideData_train = AbideData(train_x, train_y)
@@ -133,7 +133,7 @@ if __name__ == '__main__':
     test_loader = DataLoader(dataset=abideData_test, batch_size=batch_size, shuffle=True)
 
     # 创建LSTM模型
-    model = LSTMModel(train_x[0].shape[1], lstm_hidden_num, lstm_output_num, lstm_layers_num).to(device)
+    model = RNNModel(train_x[0].shape[1], lstm_hidden_num, lstm_output_num, lstm_layers_num).to(device)
     criterion = CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -146,6 +146,11 @@ if __name__ == '__main__':
         for i, (data_x, data_y) in enumerate(train_loader):
             if data_x.shape[0] != batch_size:
                 continue
+
+            # 设置到GPU
+            data_x = data_x.requires_grad_().to(device)
+            data_y = data_y.to(device)
+
             (hidden, cell) = repackage_hidden((hidden, cell))
             optimizer.zero_grad()
             output, (hidden, cell) = model(data_x, hidden, cell)
