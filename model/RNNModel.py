@@ -3,7 +3,7 @@ import torch.nn.modules as modules
 
 
 class RNNModel(modules.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layers=1, dropout=0):
+    def __init__(self, input_size, hidden_size, output_size, num_layers=1, dropout=0, bidirectional=False):
         super(RNNModel, self).__init__()
 
         self.input_size = input_size
@@ -11,23 +11,35 @@ class RNNModel(modules.Module):
         self.output_size = output_size
         self.num_layers = num_layers
         self.dropout = dropout
+        self.bidirectional = bidirectional
+
+        if bidirectional:
+            num_directions = 2
+        else:
+            num_directions = 1
 
         # 创建模型
-        self.rnn = modules.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=self.dropout)
+        self.rnn = modules.LSTM(input_size, hidden_size, num_layers, batch_first=True,
+                                dropout=self.dropout, bidirectional=self.bidirectional)
         if self.dropout != 0:
             self.drop = modules.Dropout(dropout)
         # 创建全连接层
-        self.fc = modules.Linear(hidden_size, output_size)
+        self.fc = modules.Linear(hidden_size * num_directions, output_size)
         # 设置激活函数
         self.activation = modules.LogSoftmax(dim=1)
 
     # 初始化Hidden和Cell
-    def init_hidden_cell(self, batch_size):
+    def init_hidden_cell(self, batch_size, bidirectional=False):
+        if bidirectional:
+            num_directions = 2
+        else:
+            num_directions = 1
+
         # 获取权重对象
         weight = next(self.parameters())
         # 初始化权重
-        hidden = weight.new_zeros(self.num_layers, batch_size, self.hidden_size)
-        cell = weight.new_zeros(self.num_layers, batch_size, self.hidden_size)
+        hidden = weight.new_zeros(self.num_layers * num_directions, batch_size, self.hidden_size)
+        cell = weight.new_zeros(self.num_layers * num_directions, batch_size, self.hidden_size)
 
         return hidden, cell
 

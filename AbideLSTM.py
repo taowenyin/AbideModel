@@ -112,6 +112,8 @@ if __name__ == '__main__':
     lstm_output_num = 2
     # LSTM层数量
     lstm_layers_num = 2
+    # 是否是双向LSTM
+    bidirectional = True
 
     # 构建完整数据集
     hdf5_dataset = hdf5["patients"]
@@ -138,7 +140,8 @@ if __name__ == '__main__':
     test_loader = DataLoader(dataset=abideData_test, batch_size=batch_size, shuffle=True)
 
     # 创建LSTM模型
-    model = RNNModel(train_x[0].shape[1], lstm_hidden_num, lstm_output_num, lstm_layers_num).to(device)
+    model = RNNModel(train_x[0].shape[1], lstm_hidden_num, lstm_output_num,
+                     lstm_layers_num, bidirectional=bidirectional).to(device)
     criterion = CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -146,7 +149,7 @@ if __name__ == '__main__':
     model.train()
     total_step = len(train_loader)
     # 初始化Hidden和Cell
-    (hidden, cell) = model.init_hidden_cell(batch_size)
+    (hidden, cell) = model.init_hidden_cell(batch_size, bidirectional=bidirectional)
     for epoch in range(EPOCHS):
         for i, (data_x, data_y) in enumerate(train_loader):
             if data_x.shape[0] != batch_size:
