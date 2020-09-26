@@ -26,7 +26,6 @@ import utils.abide.prepare_utils as PrepareUtils
 from docopt import docopt
 from torch import nn
 
-
 if __name__ == '__main__':
     # 开始计时
     start = time.process_time()
@@ -59,7 +58,13 @@ if __name__ == '__main__':
     dataset_y = []
 
     # 超参数
-    timestep = 1
+    time_step = 10
+    # 高斯的均值
+    gaussian_mean = 0
+    # 高斯的方差
+    gaussian_sigma = 1
+    # 下采样率
+    down_sampling_rate = 3
 
     batch_size = 16
     # 训练周期
@@ -87,7 +92,41 @@ if __name__ == '__main__':
     dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0).numpy()
     dataset_y = np.array(dataset_y, dtype=np.long)
 
-    a = dataset_x[:,2,:]
+    # PM、GM、SM数据
+    pm_sequence_ = []
+    gm_sequence_ = []
+    sm_sequence_ = []
+    for data in dataset_x:
+        # 原始数据
+        raw_data = data.copy()
+        # 高斯数据
+        gaussian_data = raw_data.copy() + np.random.normal(gaussian_mean, gaussian_sigma, raw_data.shape)
+        # 重采样数据
+        resample_data = data.copy()
 
+        # 获取时间序列长度
+        time_length = raw_data.shape[0]
+        pm_sequence_item_ = []
+        gm_sequence_item_ = []
+        sm_sequence_item_ = []
+
+        # 计算PM、GM矩阵
+        for i in range(time_length - time_step + 1):
+            pm = raw_data[i: i + time_step, :]
+            gm = gaussian_data[i: i + time_step, :]
+            pm_sequence_item_.append(pm)
+            gm_sequence_item_.append(gm)
+        # 对数据进行下采样，计算SM矩阵
+        sm_sequence_item_ = resample_data[::down_sampling_rate, :]
+
+        # 保存PM、GM、SM列表
+        pm_sequence_.append(pm_sequence_item_)
+        gm_sequence_.append(gm_sequence_item_)
+        sm_sequence_.append(sm_sequence_item_)
+
+    # 获得PM、GM、SM数据
+    pm_data = np.array(pm_sequence_)
+    gm_data = np.array(gm_sequence_)
+    sm_data = np.array(sm_sequence_)
 
     print('xxx')
