@@ -29,8 +29,8 @@ class RNNModel(modules.Module):
         self.activation = modules.LogSoftmax(dim=1)
 
     # 初始化Hidden和Cell
-    def init_hidden_cell(self, batch_size, bidirectional=False):
-        if bidirectional:
+    def init_hidden_cell(self, batch_size):
+        if self.bidirectional:
             num_directions = 2
         else:
             num_directions = 1

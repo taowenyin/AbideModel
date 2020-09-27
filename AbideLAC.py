@@ -20,11 +20,16 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import torch
+import torch.nn.modules as modules
 import time
 import utils.abide.prepare_utils as PrepareUtils
 
 from docopt import docopt
 from torch import nn
+from sklearn.model_selection import train_test_split
+from data.ABIDE.AbideData import AbideData
+from torch.utils.data import DataLoader
+from model.LACModel import LACModel
 
 if __name__ == '__main__':
     # 开始计时
@@ -65,20 +70,27 @@ if __name__ == '__main__':
     gaussian_sigma = 1
     # 下采样率
     down_sampling_rate = 3
+    # 1D卷积核大小
+    kernel_size = 3
+    # 1D卷积的输出通道数
+    out_channels = 6
+    # LSTM隐藏层数量
+    lstm_hidden_num = 256
+    # LSTM输出层数量
+    output_size = 2
+    # LSTM层数量
+    lstm_layers_num = 1
+    # 是否是双向LSTM
+    bidirectional = False
+    # dropout大小
+    dropout = 0.2
 
+    # 每批数据的大小
     batch_size = 16
     # 训练周期
     EPOCHS = 50
     # 学习率
     learning_rate = 0.001
-    # LSTM隐藏层数量
-    lstm_hidden_num = 256
-    # LSTM输出层数量
-    lstm_output_num = 2
-    # LSTM层数量
-    lstm_layers_num = 2
-    # 是否是双向LSTM
-    bidirectional = True
 
     # 构建完整数据集
     hdf5_dataset = hdf5["patients"]
@@ -101,23 +113,26 @@ if __name__ == '__main__':
         raw_data = data.copy()
         # 高斯数据
         gaussian_data = raw_data.copy() + np.random.normal(gaussian_mean, gaussian_sigma, raw_data.shape)
-        # 重采样数据
-        resample_data = data.copy()
+        # 对数据进行下采样
+        resample_data = data.copy()[::down_sampling_rate, :]
 
         # 获取时间序列长度
-        time_length = raw_data.shape[0]
+        raw_length = raw_data.shape[0]
+        resample_length = resample_data.shape[0]
         pm_sequence_item_ = []
         gm_sequence_item_ = []
         sm_sequence_item_ = []
 
         # 计算PM、GM矩阵
-        for i in range(time_length - time_step + 1):
-            pm = raw_data[i: i + time_step, :]
-            gm = gaussian_data[i: i + time_step, :]
+        for i in range(raw_length - time_step + 1):
+            pm = raw_data[i: i + time_step, :].flatten()
+            gm = gaussian_data[i: i + time_step, :].flatten()
             pm_sequence_item_.append(pm)
             gm_sequence_item_.append(gm)
-        # 对数据进行下采样，计算SM矩阵
-        sm_sequence_item_ = resample_data[::down_sampling_rate, :]
+        # 计算SM矩阵
+        for i in range(resample_length - time_step + 1):
+            sm = resample_data[i: i + time_step, :].flatten()
+            sm_sequence_item_.append(sm)
 
         # 保存PM、GM、SM列表
         pm_sequence_.append(pm_sequence_item_)
@@ -128,5 +143,23 @@ if __name__ == '__main__':
     pm_data = np.array(pm_sequence_)
     gm_data = np.array(gm_sequence_)
     sm_data = np.array(sm_sequence_)
+
+    pm_train_x, pm_test_x, pm_train_y, pm_test_y = train_test_split(pm_data, dataset_y, test_size=0.3, shuffle=True)
+    gm_train_x, gm_test_x, gm_train_y, gm_test_y = train_test_split(gm_data, dataset_y, test_size=0.3, shuffle=True)
+    sm_train_x, sm_test_x, sm_train_y, sm_test_y = train_test_split(sm_data, dataset_y, test_size=0.3, shuffle=True)
+
+    pm_train = AbideData(pm_train_x, pm_train_y)
+    gm_train = AbideData(gm_train_x, gm_train_y)
+    sm_train = AbideData(sm_train_x, sm_train_y)
+
+    pm_loader = DataLoader(dataset=pm_train, batch_size=batch_size, shuffle=True)
+    gm_loader = DataLoader(dataset=gm_train, batch_size=batch_size, shuffle=True)
+    sm_loader = DataLoader(dataset=sm_train, batch_size=batch_size, shuffle=True)
+
+    # 创建LSTM模型
+    pm_model = LACModel(pm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
+                        num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
+    pm_criterion = modules.CrossEntropyLoss()
+    pm_optimizer = torch.optim.Adam(pm_model.parameters(), lr=learning_rate)
 
     print('xxx')

@@ -149,7 +149,7 @@ if __name__ == '__main__':
     model.train()
     total_step = len(train_loader)
     # 初始化Hidden和Cell
-    (hidden, cell) = model.init_hidden_cell(batch_size, bidirectional=bidirectional)
+    (hidden, cell) = model.init_hidden_cell(batch_size)
     for epoch in range(EPOCHS):
         for i, (data_x, data_y) in enumerate(train_loader):
             if data_x.shape[0] != batch_size:
