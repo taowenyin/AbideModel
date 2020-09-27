@@ -41,8 +41,10 @@ class LACModel(modules.Module):
 
         return hidden, cell
 
-    def forward(self, input_x, hidden, cell):
-        output, (hidden, cell) = self.rnn(input_x, (hidden, cell))
+    def forward(self, pm_x, gm_x, sm_x, hidden, cell):
+        pm_output, (pm_hidden, pm_cell) = self.rnn(pm_x, (hidden, cell))
+        gm_output, (gm_hidden, gm_cell) = self.rnn(gm_x, (hidden, cell))
+        sm_output, (sm_hidden, sm_cell) = self.rnn(sm_x, (hidden, cell))
 
-        return output, (hidden, cell)
+        return pm_output, (pm_hidden, pm_cell), gm_output, (gm_hidden, gm_cell), sm_output, (sm_hidden, sm_cell)
 
