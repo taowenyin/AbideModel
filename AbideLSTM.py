@@ -20,6 +20,7 @@ Options:
 import numpy as np
 import torch
 import utils.abide.prepare_utils as PrepareUtils
+import utils.functions as functions
 import time
 
 from docopt import docopt
@@ -54,16 +55,6 @@ def collate_fn(data):
 
     return batch_data_x_pad, torch.from_numpy(np.array(batch_data_y))
     # return batch_data_x_pack, torch.from_numpy(np.array(batch_data_y))
-
-
-# 重新打包Hidden和Cell
-def repackage_hidden(h):
-    """Wraps hidden states in new Tensors, to detach them from their history."""
-
-    if isinstance(h, torch.Tensor):
-        return h.detach()
-    else:
-        return tuple(repackage_hidden(v) for v in h)
 
 
 # https://www.cnblogs.com/kamekin/p/10163743.
@@ -159,7 +150,7 @@ if __name__ == '__main__':
             data_x = data_x.requires_grad_().to(device)
             data_y = data_y.to(device)
 
-            (hidden, cell) = repackage_hidden((hidden, cell))
+            (hidden, cell) = functions.repackage_hidden((hidden, cell))
             optimizer.zero_grad()
             output, (hidden, cell) = model(data_x, hidden, cell)
             loss = criterion(output, data_y)

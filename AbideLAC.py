@@ -23,6 +23,7 @@ import torch
 import torch.nn.modules as modules
 import time
 import utils.abide.prepare_utils as PrepareUtils
+import utils.functions as functions
 
 from docopt import docopt
 from torch import nn
@@ -79,7 +80,7 @@ if __name__ == '__main__':
     # LSTM输出层数量
     output_size = 2
     # LSTM层数量
-    lstm_layers_num = 1
+    lstm_layers_num = 2
     # 是否是双向LSTM
     bidirectional = False
     # dropout大小
@@ -159,7 +160,57 @@ if __name__ == '__main__':
     # 创建LSTM模型
     pm_model = LACModel(pm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
                         num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
-    pm_criterion = modules.CrossEntropyLoss()
+    gm_model = LACModel(gm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
+                        num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
+    sm_model = LACModel(sm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
+                        num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
+    criterion = modules.CrossEntropyLoss()
     pm_optimizer = torch.optim.Adam(pm_model.parameters(), lr=learning_rate)
+    gm_optimizer = torch.optim.Adam(gm_model.parameters(), lr=learning_rate)
+    sm_optimizer = torch.optim.Adam(sm_model.parameters(), lr=learning_rate)
+
+    # 开启训练
+    pm_model.train()
+    gm_model.train()
+    sm_model.train()
+    total_step = len(pm_loader)
+    # 初始化Hidden和Cell
+    (pm_hidden, pm_cell) = pm_model.init_hidden_cell(batch_size)
+    (gm_hidden, gm_cell) = gm_model.init_hidden_cell(batch_size)
+    (sm_hidden, sm_cell) = sm_model.init_hidden_cell(batch_size)
+    for epoch in range(EPOCHS):
+        for i, data in enumerate(zip(pm_loader, gm_loader, sm_loader)):
+            pm_x = data[0][0].requires_grad_().to(device)
+            pm_y = data[0][1].to(device)
+            gm_x = data[1][0].requires_grad_().to(device)
+            gm_y = data[1][1].to(device)
+            sm_x = data[2][0].requires_grad_().to(device)
+            sm_y = data[2][1].to(device)
+
+            (pm_hidden, pm_cell) = functions.repackage_hidden((pm_hidden, pm_cell))
+            (gm_hidden, gm_cell) = functions.repackage_hidden((gm_hidden, gm_cell))
+            (sm_hidden, sm_cell) = functions.repackage_hidden((sm_hidden, sm_cell))
+
+            pm_optimizer.zero_grad()
+            gm_optimizer.zero_grad()
+            sm_optimizer.zero_grad()
+
+            pm_output, (pm_hidden, pm_cell) = pm_model(pm_x, pm_hidden, pm_cell)
+            gm_output, (gm_hidden, gm_cell) = pm_model(pm_x, gm_hidden, gm_cell)
+            sm_output, (sm_hidden, sm_cell) = pm_model(pm_x, sm_hidden, sm_cell)
+
+            pm_loss = criterion(pm_output, pm_y)
+            gm_loss = criterion(gm_output, gm_y)
+            sm_loss = criterion(sm_output, sm_y)
+
+            pm_loss.backward()
+            gm_loss.backward()
+            sm_loss.backward()
+
+            pm_optimizer.step()
+            gm_optimizer.step()
+            sm_optimizer.step()
+
+            print('xx')
 
     print('xxx')
