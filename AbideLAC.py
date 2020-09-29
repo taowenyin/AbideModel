@@ -74,13 +74,13 @@ if __name__ == '__main__':
     # 1D卷积核大小
     kernel_size = 3
     # 1D卷积的输出通道数
-    out_channels = 6
+    out_channels = 4
     # LSTM隐藏层数量
     lstm_hidden_num = 256
     # LSTM输出层数量
     output_size = 2
     # LSTM层数量
-    lstm_layers_num = 2
+    lstm_layers_num = 1
     # 是否是双向LSTM
     bidirectional = False
     # dropout大小

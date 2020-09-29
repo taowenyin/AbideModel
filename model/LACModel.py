@@ -21,14 +21,15 @@ class LACModel(modules.Module):
             num_directions = 1
 
         # 创建LSTM
-        self.rnn = modules.LSTM(self.input_size, self.hidden_size, self.num_layers, batch_first=True,
-                                dropout=self.dropout, bidirectional=self.bidirectional)
+        self.rnn = modules.LSTM(self.input_size, self.hidden_size, self.num_layers, batch_first=True, bidirectional=self.bidirectional)
         # LSTM激活函数
         self.rnn_act = modules.ReLU()
         # 创建1D-CNN
-        self.cnn = modules.Conv1d(self.input_size, self.out_channels, self.kernel_size)
+        self.cnn = modules.Conv1d(1, self.out_channels, self.kernel_size)
         # 1D-CNN激活函数
         self.cnn_act = modules.Tanh()
+        # Dropout层
+        self.drop = modules.Dropout(dropout)
 
     # 初始化Hidden和Cell
     def init_hidden_cell(self, batch_size, bidirectional=False):
@@ -47,6 +48,10 @@ class LACModel(modules.Module):
 
     def forward(self, data_x, hidden, cell):
         output, (hidden, cell) = self.rnn(data_x, (hidden, cell))
+        # 重新组织数据
+        hidden = hidden.permute(1, 0, 2)
+
+        output = self.cnn(hidden)
 
         return output, (hidden, cell)
 
