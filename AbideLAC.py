@@ -30,7 +30,8 @@ from torch import nn
 from sklearn.model_selection import train_test_split
 from data.ABIDE.AbideData import AbideData
 from torch.utils.data import DataLoader
-from model.LacUnitModel import LacUnitModel
+from model.LACModelUnit import LACModelUnit
+from model.LACModel import LACMode
 
 if __name__ == '__main__':
     # 开始计时
@@ -158,26 +159,18 @@ if __name__ == '__main__':
     sm_loader = DataLoader(dataset=sm_train, batch_size=batch_size, shuffle=True)
 
     # 创建LSTM模型
-    pm_model = LacUnitModel(pm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
-                            num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
-    gm_model = LacUnitModel(gm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
-                            num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
-    sm_model = LacUnitModel(sm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
-                            num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
+    model = LACMode(pm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
+                    num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
     criterion = modules.CrossEntropyLoss()
-    pm_optimizer = torch.optim.Adam(pm_model.parameters(), lr=learning_rate)
-    gm_optimizer = torch.optim.Adam(gm_model.parameters(), lr=learning_rate)
-    sm_optimizer = torch.optim.Adam(sm_model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     # 开启训练
-    pm_model.train()
-    gm_model.train()
-    sm_model.train()
+    model.train()
     total_step = len(pm_loader)
     # 初始化Hidden和Cell
-    (pm_hidden, pm_cell) = pm_model.init_hidden_cell(batch_size)
-    (gm_hidden, gm_cell) = gm_model.init_hidden_cell(batch_size)
-    (sm_hidden, sm_cell) = sm_model.init_hidden_cell(batch_size)
+    (pm_hidden, pm_cell) = model.init_hidden_cell(batch_size)
+    (gm_hidden, gm_cell) = model.init_hidden_cell(batch_size)
+    (sm_hidden, sm_cell) = model.init_hidden_cell(batch_size)
     for epoch in range(EPOCHS):
         for i, data in enumerate(zip(pm_loader, gm_loader, sm_loader)):
             pm_x = data[0][0].requires_grad_().to(device)
@@ -191,25 +184,22 @@ if __name__ == '__main__':
             (gm_hidden, gm_cell) = functions.repackage_hidden((gm_hidden, gm_cell))
             (sm_hidden, sm_cell) = functions.repackage_hidden((sm_hidden, sm_cell))
 
-            pm_optimizer.zero_grad()
-            gm_optimizer.zero_grad()
-            sm_optimizer.zero_grad()
+            optimizer.zero_grad()
 
-            pm_output, (pm_hidden, pm_cell) = pm_model(pm_x, pm_hidden, pm_cell)
-            gm_output, (gm_hidden, gm_cell) = pm_model(pm_x, gm_hidden, gm_cell)
-            sm_output, (sm_hidden, sm_cell) = pm_model(pm_x, sm_hidden, sm_cell)
+            pm_output, (pm_hidden, pm_cell), gm_output, (gm_hidden, gm_cell), sm_output, (sm_hidden, sm_cell) = model(
+                pm_x, gm_x, sm_x, pm_hidden, pm_cell, gm_hidden, gm_cell, sm_hidden, sm_cell)
 
-            pm_loss = criterion(pm_output, pm_y)
-            gm_loss = criterion(gm_output, gm_y)
-            sm_loss = criterion(sm_output, sm_y)
-
-            pm_loss.backward()
-            gm_loss.backward()
-            sm_loss.backward()
-
-            pm_optimizer.step()
-            gm_optimizer.step()
-            sm_optimizer.step()
+            # pm_loss = criterion(pm_output, pm_y)
+            # gm_loss = criterion(gm_output, gm_y)
+            # sm_loss = criterion(sm_output, sm_y)
+            #
+            # pm_loss.backward()
+            # gm_loss.backward()
+            # sm_loss.backward()
+            #
+            # optimizer.step()
+            # optimizer.step()
+            # optimizer.step()
 
             print('xx')
 

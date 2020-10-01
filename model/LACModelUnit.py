@@ -2,9 +2,9 @@ import torch
 import torch.nn.modules as modules
 
 
-class LacUnitModel(modules.Module):
+class LACModelUnit(modules.Module):
     def __init__(self, input_size, hidden_size, kernel_size, out_channels, output_size, num_layers=1, dropout=0, bidirectional=False):
-        super(LacUnitModel, self).__init__()
+        super(LACModelUnit, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -31,21 +31,6 @@ class LacUnitModel(modules.Module):
         # Dropout层
         self.drop = modules.Dropout(dropout)
 
-    # 初始化Hidden和Cell
-    def init_hidden_cell(self, batch_size, bidirectional=False):
-        if bidirectional:
-            num_directions = 2
-        else:
-            num_directions = 1
-
-        # 获取权重对象
-        weight = next(self.parameters())
-        # 初始化权重
-        hidden = weight.new_zeros(self.num_layers * num_directions, batch_size, self.hidden_size)
-        cell = weight.new_zeros(self.num_layers * num_directions, batch_size, self.hidden_size)
-
-        return hidden, cell
-
     def forward(self, data_x, hidden, cell):
         output, (hidden, cell) = self.rnn(data_x, (hidden, cell))
         # 经过ReLU函数激活
@@ -56,6 +41,8 @@ class LacUnitModel(modules.Module):
         output = self.cnn(output)
         # 经过Tanh函数激活
         output = self.cnn_act(output)
+        # 把二维数据拉为一维数据
+        output = output.reshape(output.shape[0], -1)
 
         return output, (hidden, cell)
 
