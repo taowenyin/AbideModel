@@ -30,7 +30,7 @@ from torch import nn
 from sklearn.model_selection import train_test_split
 from data.ABIDE.AbideData import AbideData
 from torch.utils.data import DataLoader
-from model.LACModel import LACModel
+from model.LacUnitModel import LacUnitModel
 
 if __name__ == '__main__':
     # 开始计时
@@ -158,12 +158,12 @@ if __name__ == '__main__':
     sm_loader = DataLoader(dataset=sm_train, batch_size=batch_size, shuffle=True)
 
     # 创建LSTM模型
-    pm_model = LACModel(pm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
-                        num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
-    gm_model = LACModel(gm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
-                        num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
-    sm_model = LACModel(sm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
-                        num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
+    pm_model = LacUnitModel(pm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
+                            num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
+    gm_model = LacUnitModel(gm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
+                            num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
+    sm_model = LacUnitModel(sm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
+                            num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
     criterion = modules.CrossEntropyLoss()
     pm_optimizer = torch.optim.Adam(pm_model.parameters(), lr=learning_rate)
     gm_optimizer = torch.optim.Adam(gm_model.parameters(), lr=learning_rate)

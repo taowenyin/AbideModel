@@ -2,9 +2,9 @@ import torch
 import torch.nn.modules as modules
 
 
-class LACModel(modules.Module):
+class LacUnitModel(modules.Module):
     def __init__(self, input_size, hidden_size, kernel_size, out_channels, output_size, num_layers=1, dropout=0, bidirectional=False):
-        super(LACModel, self).__init__()
+        super(LacUnitModel, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -48,10 +48,14 @@ class LACModel(modules.Module):
 
     def forward(self, data_x, hidden, cell):
         output, (hidden, cell) = self.rnn(data_x, (hidden, cell))
+        # 经过ReLU函数激活
+        output = self.rnn_act(hidden)
         # 重新组织数据
-        hidden = hidden.permute(1, 0, 2)
-
-        output = self.cnn(hidden)
+        output = output.permute(1, 0, 2)
+        # output size: batch_siz * out_channels * (lstm_hidden_num - kernel_size + 1)
+        output = self.cnn(output)
+        # 经过Tanh函数激活
+        output = self.cnn_act(output)
 
         return output, (hidden, cell)
 
