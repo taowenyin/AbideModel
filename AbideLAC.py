@@ -93,6 +93,8 @@ if __name__ == '__main__':
     EPOCHS = 50
     # 学习率
     learning_rate = 0.001
+    # 模型序列数量
+    model_sequence_size = 9
 
     # 构建完整数据集
     hdf5_dataset = hdf5["patients"]
@@ -159,19 +161,33 @@ if __name__ == '__main__':
     gm_loader = DataLoader(dataset=gm_train, batch_size=batch_size, shuffle=True)
     sm_loader = DataLoader(dataset=sm_train, batch_size=batch_size, shuffle=True)
 
-    # 创建LSTM模型
-    model = LACMode(pm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels, output_size,
-                    num_layers=lstm_layers_num, dropout=dropout, bidirectional=bidirectional).to(device)
+    model_sequence = []
+    optimizer_sequence = []
+    hidden_cell_sequence = []
     criterion = modules.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    # 创建LSTM模型
+    for i in range(model_sequence_size):
+        # 初始化模型
+        model = LACMode(pm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels,
+                        output_size, num_layers=lstm_layers_num, dropout=dropout,
+                        bidirectional=bidirectional).to(device)
+        # 初始化优化器
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+        # 初始化PM、GM、SM的Hidden和Cell
+        hidden_cell_sequence_item = [model.init_hidden_cell(batch_size),
+                                     model.init_hidden_cell(batch_size),
+                                     model.init_hidden_cell(batch_size)]
+
+        model_sequence.append(model)
+        optimizer_sequence.append(optimizer)
+        hidden_cell_sequence.append(hidden_cell_sequence_item)
 
     # 开启训练
-    model.train()
+    for i in range(model_sequence_size):
+        model = model_sequence[i]
+        model.train()
+
     total_step = len(pm_loader)
-    # 初始化Hidden和Cell
-    (pm_hidden, pm_cell) = model.init_hidden_cell(batch_size)
-    (gm_hidden, gm_cell) = model.init_hidden_cell(batch_size)
-    (sm_hidden, sm_cell) = model.init_hidden_cell(batch_size)
     for epoch in range(EPOCHS):
         for i, data in enumerate(zip(pm_loader, gm_loader, sm_loader)):
             pm_x = data[0][0].requires_grad_().to(device)
@@ -181,14 +197,28 @@ if __name__ == '__main__':
             sm_x = data[2][0].requires_grad_().to(device)
             sm_y = data[2][1].to(device)
 
-            (pm_hidden, pm_cell) = functions.repackage_hidden((pm_hidden, pm_cell))
-            (gm_hidden, gm_cell) = functions.repackage_hidden((gm_hidden, gm_cell))
-            (sm_hidden, sm_cell) = functions.repackage_hidden((sm_hidden, sm_cell))
+            for j in range(model_sequence_size):
+                # 获取模型
+                model = model_sequence[j]
+                # 获取优化器
+                optimizer = optimizer_sequence[j]
 
-            optimizer.zero_grad()
+                # 解包Hidden和Cell
+                (pm_hidden, pm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][0])
+                (gm_hidden, gm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][1])
+                (sm_hidden, sm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][2])
 
-            pm_output, (pm_hidden, pm_cell), gm_output, (gm_hidden, gm_cell), sm_output, (sm_hidden, sm_cell) = model(
-                pm_x, gm_x, sm_x, pm_hidden, pm_cell, gm_hidden, gm_cell, sm_hidden, sm_cell)
+                # 清空梯度
+                optimizer.zero_grad()
+
+                # 模型计算
+                output, (pm_hidden, pm_cell), (gm_hidden, gm_cell), (sm_hidden, sm_cell) = model(
+                    pm_x, gm_x, sm_x, pm_hidden, pm_cell, gm_hidden, gm_cell, sm_hidden, sm_cell)
+
+                # 更新Hidden和Cell
+                hidden_cell_sequence[j][0] = (pm_hidden, pm_cell)
+                hidden_cell_sequence[j][1] = (gm_hidden, gm_cell)
+                hidden_cell_sequence[j][2] = (sm_hidden, sm_cell)
 
             # pm_loss = criterion(pm_output, pm_y)
             # gm_loss = criterion(gm_output, gm_y)
