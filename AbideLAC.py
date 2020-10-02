@@ -114,7 +114,8 @@ if __name__ == '__main__':
         # 原始数据
         raw_data = data.copy()
         # 高斯数据
-        gaussian_data = raw_data.copy() + np.random.normal(gaussian_mean, gaussian_sigma, raw_data.shape)
+        gaussian_data = raw_data.copy() + np.array(
+            np.random.normal(gaussian_mean, gaussian_sigma, raw_data.shape), dtype=np.float32)
         # 对数据进行下采样
         resample_data = data.copy()[::down_sampling_rate, :]
 
