@@ -28,7 +28,7 @@ import utils.functions as functions
 from docopt import docopt
 from torch import nn
 from sklearn.model_selection import train_test_split
-from data.ABIDE.AbideData import AbideData
+from data.ABIDE.AbideLacData import AbideLacData
 from torch.utils.data import DataLoader
 from model.LACModelUnit import LACModelUnit
 from model.LACModel import LACMode
@@ -143,122 +143,93 @@ if __name__ == '__main__':
         pm_sequence_.append(pm_sequence_item_)
         gm_sequence_.append(gm_sequence_item_)
         sm_sequence_.append(sm_sequence_item_)
-
     # 获得PM、GM、SM数据
     pm_data = np.array(pm_sequence_)
     gm_data = np.array(gm_sequence_)
     sm_data = np.array(sm_sequence_)
 
-    pm_train_x, pm_test_x, pm_train_y, pm_test_y = train_test_split(pm_data, dataset_y, test_size=0.3, shuffle=True)
-    gm_train_x, gm_test_x, gm_train_y, gm_test_y = train_test_split(gm_data, dataset_y, test_size=0.3, shuffle=True)
-    sm_train_x, sm_test_x, sm_train_y, sm_test_y = train_test_split(sm_data, dataset_y, test_size=0.3, shuffle=True)
-
-    pm_train = AbideData(pm_train_x, pm_train_y)
-    gm_train = AbideData(gm_train_x, gm_train_y)
-    sm_train = AbideData(sm_train_x, sm_train_y)
-
-    pm_loader = DataLoader(dataset=pm_train, batch_size=batch_size, shuffle=True)
-    gm_loader = DataLoader(dataset=gm_train, batch_size=batch_size, shuffle=True)
-    sm_loader = DataLoader(dataset=sm_train, batch_size=batch_size, shuffle=True)
+    lac_data = AbideLacData(pm_data, gm_data, sm_data, dataset_y)
+    lac_loader = DataLoader(dataset=lac_data, batch_size=batch_size, shuffle=True)
 
     model_sequence = []
-    optimizer_sequence = []
     hidden_cell_sequence = []
-    criterion = modules.CrossEntropyLoss()
     # 创建LSTM模型
     for i in range(model_sequence_size):
         # 初始化模型
-        model = LACMode(pm_train_x[0].shape[1], lstm_hidden_num, kernel_size, out_channels,
+        model = LACMode(lac_data.get_feature_size(), lstm_hidden_num, kernel_size, out_channels,
                         output_size, num_layers=lstm_layers_num, dropout=dropout,
                         bidirectional=bidirectional).to(device)
-        # 初始化优化器
-        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         # 初始化PM、GM、SM的Hidden和Cell
         hidden_cell_sequence_item = [model.init_hidden_cell(batch_size),
                                      model.init_hidden_cell(batch_size),
                                      model.init_hidden_cell(batch_size)]
-
         model_sequence.append(model)
-        optimizer_sequence.append(optimizer)
         hidden_cell_sequence.append(hidden_cell_sequence_item)
+    # 初始化优化器
+    optimizer = torch.optim.Adam([{"params": model.parameters()} for model in model_sequence], lr=learning_rate)
+    # 初始化损失函数
+    criterion = modules.CrossEntropyLoss()
 
     # 开启训练
     for i in range(model_sequence_size):
         model = model_sequence[i]
         model.train()
 
-    total_step = len(pm_loader)
+    total_step = len(lac_loader)
     for epoch in range(EPOCHS):
-        for i, data in enumerate(zip(pm_loader, gm_loader, sm_loader)):
+        for i, data in enumerate(lac_loader):
             # 保存模型结果
             model_result = []
             # 投票结果
             result = []
 
-            pm_x = data[0][0].requires_grad_().to(device)
-            pm_y = data[0][1].to(device)
-            gm_x = data[1][0].requires_grad_().to(device)
-            gm_y = data[1][1].to(device)
-            sm_x = data[2][0].requires_grad_().to(device)
-            sm_y = data[2][1].to(device)
+            pm_x = data[0].requires_grad_().to(device)
+            gm_x = data[1].requires_grad_().to(device)
+            sm_x = data[2].requires_grad_().to(device)
+            data_y = data[3].to(device)
 
+            # 清空所有网络的梯度
+            optimizer.zero_grad()
             for j in range(model_sequence_size):
                 # 获取模型
                 model = model_sequence[j]
-                # 获取优化器
-                optimizer = optimizer_sequence[j]
 
                 # 解包Hidden和Cell
                 (pm_hidden, pm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][0])
                 (gm_hidden, gm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][1])
                 (sm_hidden, sm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][2])
 
-                # 清空梯度
-                optimizer.zero_grad()
-
                 # 模型计算
                 output, (pm_hidden, pm_cell), (gm_hidden, gm_cell), (sm_hidden, sm_cell) = model(
                     pm_x, gm_x, sm_x, pm_hidden, pm_cell, gm_hidden, gm_cell, sm_hidden, sm_cell)
+                loss = criterion(output, data_y)
+                loss.backward()
 
                 # 更新Hidden和Cell
                 hidden_cell_sequence[j][0] = (pm_hidden, pm_cell)
                 hidden_cell_sequence[j][1] = (gm_hidden, gm_cell)
                 hidden_cell_sequence[j][2] = (sm_hidden, sm_cell)
-
+                # 获得每个模型的结果
                 model_result.append(output)
+            # 优化参数
+            optimizer.step()
 
-            # 结果重新布局
-            shape = model_result[0].shape
-            model_result = torch.cat(model_result, dim=0).view(-1, shape[0], shape[1])
-
-            # 对结果进行投票解决
-            for k in range(model_result.shape[1]):
-                vote = model_result[:, k, :]
-                vote = torch.argmax(vote, dim=1)
-                negative = vote[vote == 0].numel()
-                positive = vote[vote == 1].numel()
-
-                # 计算投票结果
-                if negative > positive:
-                    result.append(0)
-                else:
-                    result.append(1)
-
-            index = torch.argmax(model_result, dim=1)
-
-            print('xxx')
-
-            # pm_loss = criterion(pm_output, pm_y)
-            # gm_loss = criterion(gm_output, gm_y)
-            # sm_loss = criterion(sm_output, sm_y)
+            # ===================测试时进行投票===================
+            # # 多模型结果重新布局
+            # shape = model_result[0].shape
+            # model_result = torch.cat(model_result, dim=0).view(-1, shape[0], shape[1])
+            # # 对多模型结果进行投票解决
+            # for k in range(model_result.shape[1]):
+            #     vote = model_result[:, k, :]
+            #     vote = torch.argmax(vote, dim=1)
+            #     negative = vote[vote == 0].numel()
+            #     positive = vote[vote == 1].numel()
             #
-            # pm_loss.backward()
-            # gm_loss.backward()
-            # sm_loss.backward()
-            #
-            # optimizer.step()
-            # optimizer.step()
-            # optimizer.step()
+            #     # 计算投票结果
+            #     if negative > positive:
+            #         result.append(0)
+            #     else:
+            #         result.append(1)
 
             print('xx')
 
