@@ -190,6 +190,11 @@ if __name__ == '__main__':
     total_step = len(pm_loader)
     for epoch in range(EPOCHS):
         for i, data in enumerate(zip(pm_loader, gm_loader, sm_loader)):
+            # 保存模型结果
+            model_result = []
+            # 投票结果
+            result = []
+
             pm_x = data[0][0].requires_grad_().to(device)
             pm_y = data[0][1].to(device)
             gm_x = data[1][0].requires_grad_().to(device)
@@ -219,6 +224,29 @@ if __name__ == '__main__':
                 hidden_cell_sequence[j][0] = (pm_hidden, pm_cell)
                 hidden_cell_sequence[j][1] = (gm_hidden, gm_cell)
                 hidden_cell_sequence[j][2] = (sm_hidden, sm_cell)
+
+                model_result.append(output)
+
+            # 结果重新布局
+            shape = model_result[0].shape
+            model_result = torch.cat(model_result, dim=0).view(-1, shape[0], shape[1])
+
+            # 对结果进行投票解决
+            for k in range(model_result.shape[1]):
+                vote = model_result[:, k, :]
+                vote = torch.argmax(vote, dim=1)
+                negative = vote[vote == 0].numel()
+                positive = vote[vote == 1].numel()
+
+                # 计算投票结果
+                if negative > positive:
+                    result.append(0)
+                else:
+                    result.append(1)
+
+            index = torch.argmax(model_result, dim=1)
+
+            print('xxx')
 
             # pm_loss = criterion(pm_output, pm_y)
             # gm_loss = criterion(gm_output, gm_y)
