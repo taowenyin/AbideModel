@@ -199,11 +199,49 @@ if __name__ == '__main__':
                 (gm_hidden, gm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][1])
                 (sm_hidden, sm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][2])
 
+                pm_hidden_ = pm_cell_ = gm_hidden_ = gm_cell_ = sm_hidden_ = sm_cell_ = None
+                # 获取数据形状
+                curr_batch_size = pm_x.shape[0]
+                if curr_batch_size < batch_size:
+                    # 参数备份
+                    pm_hidden_ = pm_hidden.clone()
+                    pm_cell_ = pm_cell.clone()
+                    gm_hidden_ = gm_hidden.clone()
+                    gm_cell_ = gm_cell.clone()
+                    sm_hidden_ = sm_hidden.clone()
+                    sm_cell_ = sm_cell.clone()
+
+                    # 切换部分数据
+                    pm_hidden = pm_hidden[:, 0:curr_batch_size, :]
+                    pm_cell = pm_cell[:, 0:curr_batch_size, :]
+                    gm_hidden = gm_hidden[:, 0:curr_batch_size, :]
+                    gm_cell = gm_cell[:, 0:curr_batch_size, :]
+                    sm_hidden = sm_hidden[:, 0:curr_batch_size, :]
+                    sm_cell = sm_cell[:, 0:curr_batch_size, :]
+
                 # 模型计算
                 output, (pm_hidden, pm_cell), (gm_hidden, gm_cell), (sm_hidden, sm_cell) = model(
                     pm_x, gm_x, sm_x, pm_hidden, pm_cell, gm_hidden, gm_cell, sm_hidden, sm_cell)
                 loss = criterion(output, data_y)
                 loss.backward()
+
+                print('{} EPOCH {} data batch {} model loss:{:.4f}'.format(epoch, i, j, loss))
+
+                # 恢复参数数据
+                if curr_batch_size < batch_size:
+                    pm_hidden_[:, 0:curr_batch_size, :] = pm_hidden
+                    pm_cell_[:, 0:curr_batch_size, :] = pm_cell
+                    gm_hidden_[:, 0:curr_batch_size, :] = gm_hidden
+                    gm_cell_[:, 0:curr_batch_size, :] = gm_cell
+                    sm_hidden_[:, 0:curr_batch_size, :] = sm_hidden
+                    sm_cell_[:, 0:curr_batch_size, :] = sm_cell
+
+                    pm_hidden = pm_hidden_
+                    pm_cell = pm_cell_
+                    gm_hidden = gm_hidden_
+                    gm_cell = gm_cell_
+                    sm_hidden = sm_hidden_
+                    sm_cell = sm_cell_
 
                 # 更新Hidden和Cell
                 hidden_cell_sequence[j][0] = (pm_hidden, pm_cell)
@@ -230,7 +268,6 @@ if __name__ == '__main__':
             #         result.append(0)
             #     else:
             #         result.append(1)
-
-            print('xx')
+            print('===One Data Batch Over===')
 
     print('xxx')
