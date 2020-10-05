@@ -17,7 +17,6 @@ Options:
 """
 
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 import torch.nn.modules as modules
@@ -27,10 +26,8 @@ import utils.functions as functions
 
 from docopt import docopt
 from torch import nn
-from sklearn.model_selection import train_test_split
 from data.ABIDE.AbideLacData import AbideLacData
 from torch.utils.data import DataLoader
-from model.LACModelUnit import LACModelUnit
 from model.LACModel import LACMode
 
 if __name__ == '__main__':
@@ -133,6 +130,7 @@ if __name__ == '__main__':
             pm = raw_data[i: i + time_step, :].flatten()
             gm = gaussian_data[i: i + time_step, :].flatten()
             pm_sequence_item_.append(pm)
+
             gm_sequence_item_.append(gm)
         # 计算SM矩阵
         for i in range(resample_length - time_step + 1):
@@ -148,15 +146,28 @@ if __name__ == '__main__':
     gm_data = np.array(gm_sequence_)
     sm_data = np.array(sm_sequence_)
 
-    lac_data = AbideLacData(pm_data, gm_data, sm_data, dataset_y)
-    lac_loader = DataLoader(dataset=lac_data, batch_size=batch_size, shuffle=True)
+    # 构建训练集和测试集
+    test_indices = int(len(pm_data) * 0.2)
+    lac_train_data = AbideLacData(
+        pm_data[:len(pm_data) - test_indices, :, :],
+        gm_data[:len(pm_data) - test_indices, :, :],
+        sm_data[:len(pm_data) - test_indices, :, :],
+        dataset_y[:len(dataset_y) - test_indices])
+    lac_test_data = AbideLacData(
+        pm_data[len(pm_data) - test_indices:, :, :],
+        gm_data[len(pm_data) - test_indices:, :, :],
+        sm_data[len(pm_data) - test_indices:, :, :],
+        dataset_y[len(dataset_y) - test_indices:])
+
+    lac_train_loader = DataLoader(dataset=lac_train_data, batch_size=batch_size, shuffle=True)
+    lac_test_loader = DataLoader(dataset=lac_test_data, batch_size=batch_size, shuffle=True)
 
     model_sequence = []
     hidden_cell_sequence = []
     # 创建LSTM模型
     for i in range(model_sequence_size):
         # 初始化模型
-        model = LACMode(lac_data.get_feature_size(), lstm_hidden_num, kernel_size, out_channels,
+        model = LACMode(lac_train_data.get_feature_size(), lstm_hidden_num, kernel_size, out_channels,
                         output_size, num_layers=lstm_layers_num, dropout=dropout,
                         bidirectional=bidirectional).to(device)
         # 初始化PM、GM、SM的Hidden和Cell
@@ -170,14 +181,17 @@ if __name__ == '__main__':
     # 初始化损失函数
     criterion = modules.CrossEntropyLoss()
 
-    # 开启训练
-    for i in range(model_sequence_size):
-        model = model_sequence[i]
-        model.train()
-
-    total_step = len(lac_loader)
+    train_step = len(lac_train_loader)
+    # 每轮的训练误差
+    epoch_train_loss = []
+    # 每轮的投票准确度
+    epoch_vote_correct = []
     for epoch in range(EPOCHS):
-        for i, data in enumerate(lac_loader):
+        # 每一轮的Loss
+        batch_loss = 0
+        # 训练误差
+        train_loss = 0
+        for i, data in enumerate(lac_train_loader):
             # 保存模型结果
             model_result = []
             # 投票结果
@@ -190,9 +204,13 @@ if __name__ == '__main__':
 
             # 清空所有网络的梯度
             optimizer.zero_grad()
+            # 所有模型的平均Loss
+            model_loss = 0
             for j in range(model_sequence_size):
                 # 获取模型
                 model = model_sequence[j]
+                # 开启训练
+                model.train()
 
                 # 解包Hidden和Cell
                 (pm_hidden, pm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][0])
@@ -225,7 +243,8 @@ if __name__ == '__main__':
                 loss = criterion(output, data_y)
                 loss.backward()
 
-                print('{} EPOCH {} data batch {} model loss:{:.4f}'.format(epoch, i, j, loss))
+                # 计算model的损失
+                model_loss += loss.item()
 
                 # 恢复参数数据
                 if curr_batch_size < batch_size:
@@ -251,23 +270,115 @@ if __name__ == '__main__':
                 model_result.append(output)
             # 优化参数
             optimizer.step()
+            # 计算模型平均损失
+            batch_loss += (model_loss / model_sequence_size)
+
+        # 计算训练误差
+        train_loss = batch_loss / train_step
+        # 保存训练误差
+        epoch_train_loss.append(train_loss)
+        print("{} epoch Train 的总损失率 {:.4f}".format(epoch, train_loss))
+
+        # 每批数据投票正确度
+        batch_vote_correct = 0
+        # 投票正确度
+        vote_correct = 0
+        for i, data in enumerate(lac_test_loader):
+            # 保存模型结果
+            model_result = []
+            # 投票结果
+            result = []
+
+            pm_x = data[0].requires_grad_().to(device)
+            gm_x = data[1].requires_grad_().to(device)
+            sm_x = data[2].requires_grad_().to(device)
+            data_y = data[3].to(device)
+
+            for j in range(model_sequence_size):
+                # 获取模型
+                model = model_sequence[j]
+                # 开启评价
+                model.eval()
+
+                # 解包Hidden和Cell
+                (pm_hidden, pm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][0])
+                (gm_hidden, gm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][1])
+                (sm_hidden, sm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][2])
+
+                pm_hidden_ = pm_cell_ = gm_hidden_ = gm_cell_ = sm_hidden_ = sm_cell_ = None
+                # 获取数据形状
+                curr_batch_size = pm_x.shape[0]
+                if curr_batch_size < batch_size:
+                    # 参数备份
+                    pm_hidden_ = pm_hidden.clone()
+                    pm_cell_ = pm_cell.clone()
+                    gm_hidden_ = gm_hidden.clone()
+                    gm_cell_ = gm_cell.clone()
+                    sm_hidden_ = sm_hidden.clone()
+                    sm_cell_ = sm_cell.clone()
+
+                    # 切换部分数据
+                    pm_hidden = pm_hidden[:, 0:curr_batch_size, :]
+                    pm_cell = pm_cell[:, 0:curr_batch_size, :]
+                    gm_hidden = gm_hidden[:, 0:curr_batch_size, :]
+                    gm_cell = gm_cell[:, 0:curr_batch_size, :]
+                    sm_hidden = sm_hidden[:, 0:curr_batch_size, :]
+                    sm_cell = sm_cell[:, 0:curr_batch_size, :]
+
+                output, (pm_hidden, pm_cell), (gm_hidden, gm_cell), (sm_hidden, sm_cell) = model(
+                    pm_x, gm_x, sm_x, pm_hidden, pm_cell, gm_hidden, gm_cell, sm_hidden, sm_cell)
+
+                # 恢复参数数据
+                if curr_batch_size < batch_size:
+                    pm_hidden = pm_hidden_
+                    pm_cell = pm_cell_
+                    gm_hidden = gm_hidden_
+                    gm_cell = gm_cell_
+                    sm_hidden = sm_hidden_
+                    sm_cell = sm_cell_
+
+                # 获得每个模型的结果
+                model_result.append(output)
 
             # ===================测试时进行投票===================
-            # # 多模型结果重新布局
-            # shape = model_result[0].shape
-            # model_result = torch.cat(model_result, dim=0).view(-1, shape[0], shape[1])
-            # # 对多模型结果进行投票解决
-            # for k in range(model_result.shape[1]):
-            #     vote = model_result[:, k, :]
-            #     vote = torch.argmax(vote, dim=1)
-            #     negative = vote[vote == 0].numel()
-            #     positive = vote[vote == 1].numel()
-            #
-            #     # 计算投票结果
-            #     if negative > positive:
-            #         result.append(0)
-            #     else:
-            #         result.append(1)
-            print('===One Data Batch Over===')
+            # 多模型结果重新布局
+            shape = model_result[0].shape
+            model_result = torch.cat(model_result, dim=0).view(-1, shape[0], shape[1])
+            # 对多模型结果进行投票解决
+            for k in range(model_result.shape[1]):
+                vote = model_result[:, k, :]
+                vote = torch.argmax(vote, dim=1)
+                negative = vote[vote == 0].numel()
+                positive = vote[vote == 1].numel()
 
-    print('xxx')
+                # 计算投票结果
+                if negative > positive:
+                    result.append(0)
+                else:
+                    result.append(1)
+
+            # 每个Batch的正确个数
+            batch_vote_correct += (result == data_y.cpu().numpy()).sum()
+
+        # 计算投票准确度
+        vote_correct = batch_vote_correct / len(lac_test_data.data_y)
+        # 保存投票准确度
+        epoch_vote_correct.append(vote_correct)
+        print("{} epoch Test 的总正确率 {:.4f}".format(epoch, vote_correct))
+
+    # 图表显示结果
+    plt.subplot(2, 1, 1)
+    plt.plot(range(EPOCHS), epoch_train_loss, label='Train Loss', color='steelblue')
+    plt.title('Train Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(2, 1, 2)
+    plt.plot(range(EPOCHS), epoch_vote_correct, label='Vote Correct', color='darkorange')
+    plt.title('Vote Correct')
+    plt.xlabel('Epochs')
+    plt.ylabel('Correct')
+    plt.legend()
+
+    plt.show()
