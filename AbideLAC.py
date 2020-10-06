@@ -87,7 +87,7 @@ if __name__ == '__main__':
     # 每批数据的大小
     batch_size = 16
     # 训练周期
-    EPOCHS = 50
+    EPOCHS = 20
     # 学习率
     learning_rate = 0.001
     # 模型序列数量
@@ -277,7 +277,7 @@ if __name__ == '__main__':
         train_loss = batch_loss / train_step
         # 保存训练误差
         epoch_train_loss.append(train_loss)
-        print("{} epoch Train 的总损失率 {:.4f}".format(epoch, train_loss))
+        print("\033[0;32m{} epoch Train 的总损失率 {:.4f}".format(epoch, train_loss))
 
         # 每批数据投票正确度
         batch_vote_correct = 0
@@ -364,7 +364,7 @@ if __name__ == '__main__':
         vote_correct = batch_vote_correct / len(lac_test_data.data_y)
         # 保存投票准确度
         epoch_vote_correct.append(vote_correct)
-        print("{} epoch Test 的总正确率 {:.4f}".format(epoch, vote_correct))
+        print("\033[0;31m{} epoch Test 的总正确率 {:.4f}".format(epoch, vote_correct))
 
     # 图表显示结果
     plt.subplot(2, 1, 1)
