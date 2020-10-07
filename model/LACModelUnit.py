@@ -22,10 +22,10 @@ class LACModelUnit(modules.Module):
         self.rnn_act = modules.ReLU()
         # 创建1D-CNN
         self.cnn = modules.Conv1d(1, self.out_channels, self.kernel_size)
-        # 1D-CNN激活函数
-        self.cnn_act = modules.Tanh()
         # BN层
         self.bn = modules.BatchNorm1d(self.out_channels)
+        # 1D-CNN激活函数
+        self.cnn_act = modules.Tanh()
         # Dropout层
         self.drop = modules.Dropout(dropout)
 
@@ -39,10 +39,10 @@ class LACModelUnit(modules.Module):
 
         # output size: batch_siz * out_channels * (lstm_hidden_num * bidirectional - kernel_size + 1)
         output = self.cnn(output)
+        # 经过BN层
+        # output = self.bn(output)
         # 经过Tanh函数激活
         output = self.cnn_act(output)
-        # 经过BN层
-        output = self.bn(output)
         # 把二维数据拉为一维数据
         output = output.reshape(output.shape[0], -1)
 

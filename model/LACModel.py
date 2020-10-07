@@ -32,6 +32,8 @@ class LACMode(modules.Module):
 
         # 创建全连接层
         self.fc = modules.Linear((hidden_size * num_directions - kernel_size + 1) * out_channels * 3, output_size)
+        # BN层
+        self.bn = modules.BatchNorm1d(output_size)
         # LSTM激活函数
         self.activation = modules.Softmax(dim=1)
 
@@ -59,6 +61,7 @@ class LACMode(modules.Module):
         output = torch.cat((pm_output, gm_output, sm_output), dim=1)
 
         output = self.fc(output)
+        # output = self.bn(output)
         output = self.activation(output)
 
         return output, (pm_hidden, pm_cell), (gm_hidden, gm_cell), (sm_hidden, sm_cell)
