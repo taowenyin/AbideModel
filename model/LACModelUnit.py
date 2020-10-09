@@ -1,5 +1,8 @@
 import torch
 import torch.nn.modules as modules
+import numpy as np
+
+from encoding.parallel import DataParallelModel, DataParallelCriterion
 
 
 class LACModelUnit(modules.Module):
@@ -14,10 +17,14 @@ class LACModelUnit(modules.Module):
         self.num_layers = num_layers
         self.dropout = dropout
         self.bidirectional = bidirectional
+        # 获得GPU数量
+        self.cuda_ids = np.arange(torch.cuda.device_count())
 
         # 创建LSTM
         self.rnn = modules.LSTM(self.input_size, self.hidden_size, self.num_layers,
                                 batch_first=True, bidirectional=self.bidirectional)
+        # 把模型分布到多个卡上
+        self.rnn = DataParallelModel(self.rnn, device_ids=self.cuda_ids, output_device=self.cuda_ids)
         # LSTM激活函数
         self.rnn_act = modules.ReLU()
         # 创建1D-CNN

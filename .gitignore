@@ -5,4 +5,5 @@ out/*.xlsx
 out/*.png
 *.hdf5
 *.pkl
+*.bk
 test.py

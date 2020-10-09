@@ -29,7 +29,6 @@ from torch import nn
 from data.ABIDE.AbideLacData import AbideLacData
 from torch.utils.data import DataLoader
 from model.LACModel import LACMode
-from encoding.parallel import DataParallelModel, DataParallelCriterion
 
 if __name__ == '__main__':
     # 开始计时
@@ -93,9 +92,6 @@ if __name__ == '__main__':
     learning_rate = 0.001
     # 模型序列数量
     model_sequence_size = 9
-    # 获得GPU数量
-    cuda_size = torch.cuda.device_count()
-    cuda_ids = np.arange(cuda_size)
 
     # 构建完整数据集
     hdf5_dataset = hdf5["patients"]
@@ -173,19 +169,18 @@ if __name__ == '__main__':
         # 初始化模型
         model = LACMode(lac_train_data.get_feature_size(), lstm_hidden_num, kernel_size, out_channels,
                         output_size, num_layers=lstm_layers_num, dropout=dropout,
-                        bidirectional=bidirectional)
-        # 把模型分布到多个卡上
-        model = DataParallelModel(model, device_ids=cuda_ids, output_device=cuda_ids).to(device)
+                        bidirectional=bidirectional).to(device)
         # 初始化PM、GM、SM的Hidden和Cell
-        hidden_cell_sequence_item = [model.module.init_hidden_cell(int(batch_size / cuda_size)),
-                                     model.module.init_hidden_cell(int(batch_size / cuda_size)),
-                                     model.module.init_hidden_cell(int(batch_size / cuda_size))]
+        hidden_cell_sequence_item = [model.init_hidden_cell(batch_size),
+                                     model.init_hidden_cell(batch_size),
+                                     model.init_hidden_cell(batch_size)]
         model_sequence.append(model)
         hidden_cell_sequence.append(hidden_cell_sequence_item)
     # 初始化优化器
     optimizer = torch.optim.Adam([{"params": model.parameters()} for model in model_sequence], lr=learning_rate)
     # 初始化损失函数
-    criterion = DataParallelCriterion(modules.CrossEntropyLoss())
+    # criterion = DataParallelCriterion(modules.CrossEntropyLoss())
+    criterion = modules.CrossEntropyLoss()
 
     train_step = len(lac_train_loader)
     # 每轮的训练误差
@@ -218,7 +213,6 @@ if __name__ == '__main__':
                 # 开启训练
                 model.train()
 
-                data_y = data_y.view(cuda_size, -1)
                 # 解包Hidden和Cell
                 (pm_hidden, pm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][0])
                 (gm_hidden, gm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][1])
@@ -249,13 +243,12 @@ if __name__ == '__main__':
                 #     pm_x, gm_x, sm_x, pm_hidden, pm_cell, gm_hidden, gm_cell, sm_hidden, sm_cell)
                 output = model(pm_x, gm_x, sm_x, pm_hidden, pm_cell, gm_hidden, gm_cell, sm_hidden, sm_cell)
 
-                output_ = output[0][0]
-                (pm_hidden, pm_cell) = output[0][1]
-                (gm_hidden, gm_cell) = output[0][2]
-                (sm_hidden, sm_cell) = output[0][3]
+                output_ = output[0]
+                (pm_hidden, pm_cell) = output[1]
+                (gm_hidden, gm_cell) = output[2]
+                (sm_hidden, sm_cell) = output[3]
                 loss = criterion(output_, data_y)
                 loss.backward()
-
                 # 计算model的损失
                 model_loss += loss.item()
 
