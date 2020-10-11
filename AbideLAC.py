@@ -169,9 +169,9 @@ if __name__ == '__main__':
     # 创建LSTM模型
     for i in range(model_sequence_size):
         # 初始化模型
-        model = LACMode(lac_train_data.get_feature_size(), lstm_hidden_num, kernel_size, out_channels,
-                        output_size, num_layers=lstm_layers_num, dropout=dropout,
-                        bidirectional=bidirectional).to(device)
+        model = LACMode(lac_train_data.get_feature_size(), lstm_hidden_num, batch_size,
+                        kernel_size, out_channels, output_size, num_layers=lstm_layers_num,
+                        dropout=dropout, bidirectional=bidirectional).to(device)
         # 把模型分布到多个卡上
         model = nn.DataParallel(model, device_ids=cuda_ids)
         model_sequence.append(model)
