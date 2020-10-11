@@ -30,6 +30,7 @@ from data.ABIDE.AbideLacData import AbideLacData
 from torch.utils.data import DataLoader
 from model.LACModel import LACMode
 
+
 if __name__ == '__main__':
     # 开始计时
     start = time.process_time()
@@ -92,6 +93,8 @@ if __name__ == '__main__':
     learning_rate = 0.001
     # 模型序列数量
     model_sequence_size = 9
+    # 获得GPU数量
+    cuda_ids = np.arange(torch.cuda.device_count())
 
     # 构建完整数据集
     hdf5_dataset = hdf5["patients"]
@@ -163,23 +166,18 @@ if __name__ == '__main__':
     lac_test_loader = DataLoader(dataset=lac_test_data, batch_size=batch_size, shuffle=True)
 
     model_sequence = []
-    hidden_cell_sequence = []
     # 创建LSTM模型
     for i in range(model_sequence_size):
         # 初始化模型
         model = LACMode(lac_train_data.get_feature_size(), lstm_hidden_num, kernel_size, out_channels,
                         output_size, num_layers=lstm_layers_num, dropout=dropout,
                         bidirectional=bidirectional).to(device)
-        # 初始化PM、GM、SM的Hidden和Cell
-        hidden_cell_sequence_item = [model.init_hidden_cell(batch_size),
-                                     model.init_hidden_cell(batch_size),
-                                     model.init_hidden_cell(batch_size)]
+        # 把模型分布到多个卡上
+        model = nn.DataParallel(model, device_ids=cuda_ids)
         model_sequence.append(model)
-        hidden_cell_sequence.append(hidden_cell_sequence_item)
     # 初始化优化器
     optimizer = torch.optim.Adam([{"params": model.parameters()} for model in model_sequence], lr=learning_rate)
     # 初始化损失函数
-    # criterion = DataParallelCriterion(modules.CrossEntropyLoss())
     criterion = modules.CrossEntropyLoss()
 
     train_step = len(lac_train_loader)
@@ -213,65 +211,14 @@ if __name__ == '__main__':
                 # 开启训练
                 model.train()
 
-                # 解包Hidden和Cell
-                (pm_hidden, pm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][0])
-                (gm_hidden, gm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][1])
-                (sm_hidden, sm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][2])
-
-                pm_hidden_ = pm_cell_ = gm_hidden_ = gm_cell_ = sm_hidden_ = sm_cell_ = None
-                # 获取数据形状
-                curr_batch_size = pm_x.shape[0]
-                if curr_batch_size < batch_size:
-                    # 参数备份
-                    pm_hidden_ = pm_hidden.clone()
-                    pm_cell_ = pm_cell.clone()
-                    gm_hidden_ = gm_hidden.clone()
-                    gm_cell_ = gm_cell.clone()
-                    sm_hidden_ = sm_hidden.clone()
-                    sm_cell_ = sm_cell.clone()
-
-                    # 切换部分数据
-                    pm_hidden = pm_hidden[:, 0:curr_batch_size, :]
-                    pm_cell = pm_cell[:, 0:curr_batch_size, :]
-                    gm_hidden = gm_hidden[:, 0:curr_batch_size, :]
-                    gm_cell = gm_cell[:, 0:curr_batch_size, :]
-                    sm_hidden = sm_hidden[:, 0:curr_batch_size, :]
-                    sm_cell = sm_cell[:, 0:curr_batch_size, :]
-
                 # 模型计算
-                # output, (pm_hidden, pm_cell), (gm_hidden, gm_cell), (sm_hidden, sm_cell) = model(
-                #     pm_x, gm_x, sm_x, pm_hidden, pm_cell, gm_hidden, gm_cell, sm_hidden, sm_cell)
-                output = model(pm_x, gm_x, sm_x, pm_hidden, pm_cell, gm_hidden, gm_cell, sm_hidden, sm_cell)
-
-                output_ = output[0]
-                (pm_hidden, pm_cell) = output[1]
-                (gm_hidden, gm_cell) = output[2]
-                (sm_hidden, sm_cell) = output[3]
-                loss = criterion(output_, data_y)
+                output = model(pm_x, gm_x, sm_x)
+                # 计算损失
+                loss = criterion(output, data_y)
                 loss.backward()
                 # 计算model的损失
                 model_loss += loss.item()
 
-                # 恢复参数数据
-                if curr_batch_size < batch_size:
-                    pm_hidden_[:, 0:curr_batch_size, :] = pm_hidden
-                    pm_cell_[:, 0:curr_batch_size, :] = pm_cell
-                    gm_hidden_[:, 0:curr_batch_size, :] = gm_hidden
-                    gm_cell_[:, 0:curr_batch_size, :] = gm_cell
-                    sm_hidden_[:, 0:curr_batch_size, :] = sm_hidden
-                    sm_cell_[:, 0:curr_batch_size, :] = sm_cell
-
-                    pm_hidden = pm_hidden_
-                    pm_cell = pm_cell_
-                    gm_hidden = gm_hidden_
-                    gm_cell = gm_cell_
-                    sm_hidden = sm_hidden_
-                    sm_cell = sm_cell_
-
-                # 更新Hidden和Cell
-                hidden_cell_sequence[j][0] = (pm_hidden, pm_cell)
-                hidden_cell_sequence[j][1] = (gm_hidden, gm_cell)
-                hidden_cell_sequence[j][2] = (sm_hidden, sm_cell)
                 # 获得每个模型的结果
                 model_result.append(output)
             # 优化参数
@@ -305,44 +252,7 @@ if __name__ == '__main__':
                 model = model_sequence[j]
                 # 开启评价
                 model.eval()
-
-                # 解包Hidden和Cell
-                (pm_hidden, pm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][0])
-                (gm_hidden, gm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][1])
-                (sm_hidden, sm_cell) = functions.repackage_hidden(hidden_cell_sequence[j][2])
-
-                pm_hidden_ = pm_cell_ = gm_hidden_ = gm_cell_ = sm_hidden_ = sm_cell_ = None
-                # 获取数据形状
-                curr_batch_size = pm_x.shape[0]
-                if curr_batch_size < batch_size:
-                    # 参数备份
-                    pm_hidden_ = pm_hidden.clone()
-                    pm_cell_ = pm_cell.clone()
-                    gm_hidden_ = gm_hidden.clone()
-                    gm_cell_ = gm_cell.clone()
-                    sm_hidden_ = sm_hidden.clone()
-                    sm_cell_ = sm_cell.clone()
-
-                    # 切换部分数据
-                    pm_hidden = pm_hidden[:, 0:curr_batch_size, :]
-                    pm_cell = pm_cell[:, 0:curr_batch_size, :]
-                    gm_hidden = gm_hidden[:, 0:curr_batch_size, :]
-                    gm_cell = gm_cell[:, 0:curr_batch_size, :]
-                    sm_hidden = sm_hidden[:, 0:curr_batch_size, :]
-                    sm_cell = sm_cell[:, 0:curr_batch_size, :]
-
-                output, (pm_hidden, pm_cell), (gm_hidden, gm_cell), (sm_hidden, sm_cell) = model(
-                    pm_x, gm_x, sm_x, pm_hidden, pm_cell, gm_hidden, gm_cell, sm_hidden, sm_cell)
-
-                # 恢复参数数据
-                if curr_batch_size < batch_size:
-                    pm_hidden = pm_hidden_
-                    pm_cell = pm_cell_
-                    gm_hidden = gm_hidden_
-                    gm_cell = gm_cell_
-                    sm_hidden = sm_hidden_
-                    sm_cell = sm_cell_
-
+                output = model(pm_x, gm_x, sm_x)
                 # 获得每个模型的结果
                 model_result.append(output)
 

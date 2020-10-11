@@ -2,6 +2,7 @@ import torch
 import torch.nn.modules as modules
 
 from model.LACModelUnit import LACModelUnit
+from torch import nn
 
 
 class LACMode(modules.Module):
@@ -52,11 +53,12 @@ class LACMode(modules.Module):
 
         return hidden, cell
 
-    def forward(self, pm_x, gm_x, sm_x, pm_hidden, pm_cell, gm_hidden, gm_cell, sm_hidden, sm_cell):
+    def forward(self, pm_x, gm_x, sm_x):
         # 获得PM、GM、SM数据拉伸后的一维数据
-        pm_output, (pm_hidden, pm_cell) = self.pm_model(pm_x, pm_hidden, pm_cell)
-        gm_output, (gm_hidden, gm_cell) = self.gm_model(gm_x, gm_hidden, gm_cell)
-        sm_output, (sm_hidden, sm_cell) = self.sm_model(sm_x, sm_hidden, sm_cell)
+        pm_output = self.pm_model(pm_x)
+        gm_output = self.gm_model(gm_x)
+        sm_output = self.sm_model(sm_x)
+
         # 合并PM、GM、SM
         output = torch.cat((pm_output, gm_output, sm_output), dim=1)
 
@@ -64,4 +66,4 @@ class LACMode(modules.Module):
         # output = self.bn(output)
         output = self.activation(output)
 
-        return output, (pm_hidden, pm_cell), (gm_hidden, gm_cell), (sm_hidden, sm_cell)
+        return output

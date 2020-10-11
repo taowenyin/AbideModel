@@ -2,8 +2,6 @@ import torch
 import torch.nn.modules as modules
 import numpy as np
 
-from encoding.parallel import DataParallelModel, DataParallelCriterion
-
 
 class LACModelUnit(modules.Module):
     def __init__(self, input_size, hidden_size, kernel_size,
@@ -17,14 +15,10 @@ class LACModelUnit(modules.Module):
         self.num_layers = num_layers
         self.dropout = dropout
         self.bidirectional = bidirectional
-        # 获得GPU数量
-        self.cuda_ids = np.arange(torch.cuda.device_count())
 
         # 创建LSTM
         self.rnn = modules.LSTM(self.input_size, self.hidden_size, self.num_layers,
                                 batch_first=True, bidirectional=self.bidirectional)
-        # 把模型分布到多个卡上
-        self.rnn = DataParallelModel(self.rnn, device_ids=self.cuda_ids, output_device=self.cuda_ids)
         # LSTM激活函数
         self.rnn_act = modules.ReLU()
         # 创建1D-CNN
@@ -36,8 +30,8 @@ class LACModelUnit(modules.Module):
         # Dropout层
         self.drop = modules.Dropout(dropout)
 
-    def forward(self, data_x, hidden, cell):
-        output, (hidden, cell) = self.rnn(data_x, (hidden, cell))
+    def forward(self, data_x):
+        output, (hidden, cell) = self.rnn(data_x)
         # 经过ReLU函数激活
         output = self.rnn_act(hidden)
         # 重新组织数据
@@ -53,5 +47,4 @@ class LACModelUnit(modules.Module):
         # 把二维数据拉为一维数据
         output = output.reshape(output.shape[0], -1)
 
-        return output, (hidden, cell)
-
+        return output
