@@ -5,11 +5,12 @@ from model.LACModelUnit import LACModelUnit
 from torch import nn
 
 
-class LACMode(modules.Module):
-    def __init__(self, input_size, hidden_size, batch_size, kernel_size, out_channels, output_size, num_layers=1,
-                 dropout=0, bidirectional=False):
-        super(LACMode, self).__init__()
+class LACModel(modules.Module):
+    def __init__(self, model_name, input_size, hidden_size, batch_size, kernel_size, out_channels,
+                 output_size, num_layers=1, dropout=0, bidirectional=False):
+        super(LACModel, self).__init__()
 
+        self.model_name = model_name
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.batch_size = batch_size
@@ -20,12 +21,12 @@ class LACMode(modules.Module):
         self.dropout = dropout
         self.bidirectional = bidirectional
 
-        self.pm_model = LACModelUnit(input_size, hidden_size, batch_size, kernel_size,
-                                     out_channels, num_layers, dropout, bidirectional)
-        self.gm_model = LACModelUnit(input_size, hidden_size, batch_size, kernel_size,
-                                     out_channels, num_layers, dropout, bidirectional)
-        self.sm_model = LACModelUnit(input_size, hidden_size, batch_size, kernel_size,
-                                     out_channels, num_layers, dropout, bidirectional)
+        self.pm_model = LACModelUnit('PM-{0}'.format(model_name), input_size, hidden_size, batch_size,
+                                     kernel_size, out_channels, num_layers, dropout, bidirectional)
+        self.gm_model = LACModelUnit('GM-{0}'.format(model_name), input_size, hidden_size, batch_size,
+                                     kernel_size, out_channels, num_layers, dropout, bidirectional)
+        self.sm_model = LACModelUnit('SM-{0}'.format(model_name), input_size, hidden_size, batch_size,
+                                     kernel_size, out_channels, num_layers, dropout, bidirectional)
         # 判断是否是双线LSTM
         if bidirectional:
             num_directions = 2

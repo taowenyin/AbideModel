@@ -28,7 +28,7 @@ from docopt import docopt
 from torch import nn
 from data.ABIDE.AbideLacData import AbideLacData
 from torch.utils.data import DataLoader
-from model.LACModel import LACMode
+from model.LACModel import LACModel
 
 
 if __name__ == '__main__':
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     # 学习率
     learning_rate = 0.001
     # 模型序列数量
-    model_sequence_size = 9
+    model_sequence_size = 3
     # 获得GPU数量
     cuda_ids = np.arange(torch.cuda.device_count())
 
@@ -169,9 +169,9 @@ if __name__ == '__main__':
     # 创建LSTM模型
     for i in range(model_sequence_size):
         # 初始化模型
-        model = LACMode(lac_train_data.get_feature_size(), lstm_hidden_num, batch_size,
-                        kernel_size, out_channels, output_size, num_layers=lstm_layers_num,
-                        dropout=dropout, bidirectional=bidirectional).to(device)
+        model = LACModel('model-{0}'.format(i), lac_train_data.get_feature_size(), lstm_hidden_num,
+                         batch_size, kernel_size, out_channels, output_size, num_layers=lstm_layers_num,
+                         dropout=dropout, bidirectional=bidirectional).to(device)
         # 把模型分布到多个卡上
         model = nn.DataParallel(model, device_ids=cuda_ids)
         model_sequence.append(model)

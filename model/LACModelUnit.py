@@ -5,10 +5,11 @@ import utils.functions as functions
 
 
 class LACModelUnit(modules.Module):
-    def __init__(self, input_size, hidden_size, batch_size, kernel_size,
+    def __init__(self, model_name, input_size, hidden_size, batch_size, kernel_size,
                  out_channels, num_layers=1, dropout=0, bidirectional=False):
         super(LACModelUnit, self).__init__()
 
+        self.model_name = model_name
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.batch_size = batch_size
@@ -72,5 +73,7 @@ class LACModelUnit(modules.Module):
         output = self.cnn_act(output)
         # 把二维数据拉为一维数据
         output = output.reshape(output.shape[0], -1)
+
+        # print('{0} forward'.format(self.model_name))
 
         return output
