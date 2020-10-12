@@ -82,6 +82,8 @@ if __name__ == '__main__':
     lstm_layers_num = 1
     # 是否是双向LSTM
     bidirectional = False
+    # 是否使用Batch Normalization
+    bn = False
     # dropout大小
     dropout = 0
 
@@ -171,7 +173,7 @@ if __name__ == '__main__':
         # 初始化模型
         model = LACModel('model-{0}'.format(i), lac_train_data.get_feature_size(), lstm_hidden_num,
                          batch_size, kernel_size, out_channels, output_size, num_layers=lstm_layers_num,
-                         dropout=dropout, bidirectional=bidirectional).to(device)
+                         dropout=dropout, bidirectional=bidirectional, bn=bn).to(device)
         # 把模型分布到多个卡上
         model = nn.DataParallel(model, device_ids=cuda_ids)
         model_sequence.append(model)
@@ -285,14 +287,16 @@ if __name__ == '__main__':
     # 图表显示结果
     plt.subplot(2, 1, 1)
     plt.plot(range(EPOCHS), epoch_train_loss, label='Train Loss', color='steelblue')
-    plt.title('Batch {} Drop out 0 No BN Train Loss {:.4f}'.format(batch_size, epoch_train_loss[-1]))
+    plt.title('EPOCHS {} Batch {} Drop out {} {} BN Train Loss {:.4f}'.format(
+        EPOCHS, batch_size, dropout, bn, epoch_train_loss[-1]))
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend()
 
     plt.subplot(2, 1, 2)
     plt.plot(range(EPOCHS), epoch_vote_correct, label='Vote Correct', color='darkorange')
-    plt.title('Batch {} Drop out 0 No BN Vote Correct {:.4f}'.format(batch_size, epoch_vote_correct[-1]))
+    plt.title('EPOCHS {} Batch {} Drop out {} {} BN Vote Correct {:.4f}'.format(
+        EPOCHS, batch_size, dropout, bn, epoch_vote_correct[-1]))
     plt.xlabel('Epochs')
     plt.ylabel('Correct')
     plt.legend()

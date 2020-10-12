@@ -6,7 +6,7 @@ import utils.functions as functions
 
 class LACModelUnit(modules.Module):
     def __init__(self, model_name, input_size, hidden_size, batch_size, kernel_size,
-                 out_channels, num_layers=1, dropout=0, bidirectional=False):
+                 out_channels, num_layers=1, dropout=0, bidirectional=False, bn=False):
         super(LACModelUnit, self).__init__()
 
         # 获得GPU数量
@@ -21,6 +21,7 @@ class LACModelUnit(modules.Module):
         self.num_layers = num_layers
         self.dropout = dropout
         self.bidirectional = bidirectional
+        self.bn = bn
 
         # 创建LSTM
         self.rnn = modules.LSTM(self.input_size, self.hidden_size, self.num_layers,
@@ -87,8 +88,9 @@ class LACModelUnit(modules.Module):
 
         # output size: batch_siz * out_channels * (lstm_hidden_num * bidirectional - kernel_size + 1)
         output = self.cnn(output)
-        # 经过BN层
-        # output = self.bn(output)
+        if self.bn:
+            # 经过BN层
+            output = self.bn(output)
         # 经过Tanh函数激活
         output = self.cnn_act(output)
         # 把二维数据拉为一维数据

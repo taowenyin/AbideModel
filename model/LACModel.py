@@ -7,7 +7,7 @@ from torch import nn
 
 class LACModel(modules.Module):
     def __init__(self, model_name, input_size, hidden_size, batch_size, kernel_size, out_channels,
-                 output_size, num_layers=1, dropout=0, bidirectional=False):
+                 output_size, num_layers=1, dropout=0, bidirectional=False, bn=False):
         super(LACModel, self).__init__()
 
         self.model_name = model_name
@@ -20,13 +20,14 @@ class LACModel(modules.Module):
         self.num_layers = num_layers
         self.dropout = dropout
         self.bidirectional = bidirectional
+        self.bn = bn
 
         self.pm_model = LACModelUnit('PM-{0}'.format(model_name), input_size, hidden_size, batch_size,
-                                     kernel_size, out_channels, num_layers, dropout, bidirectional)
+                                     kernel_size, out_channels, num_layers, dropout, bidirectional, bn)
         self.gm_model = LACModelUnit('GM-{0}'.format(model_name), input_size, hidden_size, batch_size,
-                                     kernel_size, out_channels, num_layers, dropout, bidirectional)
+                                     kernel_size, out_channels, num_layers, dropout, bidirectional, bn)
         self.sm_model = LACModelUnit('SM-{0}'.format(model_name), input_size, hidden_size, batch_size,
-                                     kernel_size, out_channels, num_layers, dropout, bidirectional)
+                                     kernel_size, out_channels, num_layers, dropout, bidirectional, bn)
         # 判断是否是双线LSTM
         if bidirectional:
             num_directions = 2
@@ -50,7 +51,8 @@ class LACModel(modules.Module):
         output = torch.cat((pm_output, gm_output, sm_output), dim=1)
 
         output = self.fc(output)
-        # output = self.bn(output)
+        if self.bn:
+            output = self.bn(output)
         output = self.activation(output)
 
         return output
