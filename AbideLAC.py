@@ -86,13 +86,13 @@ if __name__ == '__main__':
     dropout = 0
 
     # 每批数据的大小
-    batch_size = 64
+    batch_size = 128
     # 训练周期
-    EPOCHS = 20
+    EPOCHS = 50
     # 学习率
     learning_rate = 0.001
     # 模型序列数量
-    model_sequence_size = 3
+    model_sequence_size = 9
     # 获得GPU数量
     cuda_ids = np.arange(torch.cuda.device_count())
 
