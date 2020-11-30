@@ -1,10 +1,12 @@
 import torch
-import torch.nn as nn
+import torch.nn.modules as modules
+import torch.nn.functional as F
+
 from torch.nn.utils import weight_norm
 
 
 # 定义剪裁模块用于减去多余的padding
-class Chomp1d(nn.Module):
+class Chomp1d(modules.Module):
     def __init__(self, chomp_size):
         super(Chomp1d, self).__init__()
         self.chomp_size = chomp_size
@@ -14,7 +16,7 @@ class Chomp1d(nn.Module):
 
 
 # 定义残差模块
-class TemporalBlock(nn.Module):
+class TemporalBlock(modules.Module):
     """
     相当于一个Residual block
 
@@ -31,27 +33,27 @@ class TemporalBlock(nn.Module):
         super(TemporalBlock, self).__init__()
         # 定义残差模块的第一层扩张卷积
         # 经过conv，输出的size为(Batch, input_channel, seq_len + padding)，并归一化模型的参数
-        self.conv1 = weight_norm(nn.Conv1d(n_inputs, n_outputs, kernel_size,
-                                           stride=stride, padding=padding, dilation=dilation))
+        self.conv1 = weight_norm(modules.Conv1d(n_inputs, n_outputs, kernel_size,
+                                                stride=stride, padding=padding, dilation=dilation))
         # 裁剪掉多出来的padding部分，维持输出时间步为seq_len
         self.chomp1 = Chomp1d(padding)
-        self.relu1 = nn.ReLU()
-        self.dropout1 = nn.Dropout(dropout)
+        self.relu1 = modules.ReLU()
+        self.dropout1 = modules.Dropout(dropout)
 
         #定义残差模块的第二层扩张卷积
-        self.conv2 = weight_norm(nn.Conv1d(n_outputs, n_outputs, kernel_size,
-                                           stride=stride, padding=padding, dilation=dilation))
+        self.conv2 = weight_norm(modules.Conv1d(n_outputs, n_outputs, kernel_size,
+                                                stride=stride, padding=padding, dilation=dilation))
         self.chomp2 = Chomp1d(padding)
-        self.relu2 = nn.ReLU()
-        self.dropout2 = nn.Dropout(dropout)
+        self.relu2 = modules.ReLU()
+        self.dropout2 = modules.Dropout(dropout)
 
         # 将卷积模块进行串联构成序列
-        self.net = nn.Sequential(self.conv1, self.chomp1, self.relu1, self.dropout1,
-                                 self.conv2, self.chomp2, self.relu2, self.dropout2)
+        self.net = modules.Sequential(self.conv1, self.chomp1, self.relu1, self.dropout1,
+                                      self.conv2, self.chomp2, self.relu2, self.dropout2)
 
         # 如果输入通道和输出通道不相同，那么通过1x1卷积进行降维，保持通道相同
-        self.downsample = nn.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
-        self.relu = nn.ReLU()
+        self.downsample = modules.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
+        self.relu = modules.ReLU()
         self.init_weights()
 
     def init_weights(self):
@@ -73,7 +75,7 @@ class TemporalBlock(nn.Module):
 
 
 # 定义TCN架构
-class TemporalConvNet(nn.Module):
+class TemporalConvNet(modules.Module):
     """
     num_inputs: 输入通道数
     num_channels: 每层的hidden_channel数，例如[25,25,25,25]表示有4个隐层，每层hidden_channel数为25
@@ -94,7 +96,7 @@ class TemporalConvNet(nn.Module):
                                      padding=(kernel_size-1) * dilation_size, dropout=dropout)]
 
         # 将所有残差模块堆叠起来组成一个深度卷积网络
-        self.network = nn.Sequential(*layers)
+        self.network = modules.Sequential(*layers)
 
     def forward(self, x):
         """
@@ -106,3 +108,17 @@ class TemporalConvNet(nn.Module):
         :return: size of (Batch, output_channel, seq_len)
         """
         return self.network(x)
+
+
+# TCN模型
+class TCN(modules.Module):
+    def __init__(self, input_size, output_size, num_channels, kernel_size, dropout):
+        super(TCN, self).__init__()
+        self.tcn = TemporalConvNet(input_size, num_channels, kernel_size=kernel_size, dropout=dropout)
+        self.linear = modules.Linear(num_channels[-1], output_size)
+
+    def forward(self, inputs):
+        """Inputs have to have dimension (N, C_in, L_in)"""
+        y1 = self.tcn(inputs)  # input should have dimension (N, C, L)
+        o = self.linear(y1[:, :, -1])
+        return F.log_softmax(o, dim=1)
