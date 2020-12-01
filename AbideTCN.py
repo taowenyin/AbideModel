@@ -1,6 +1,7 @@
 import torch
 import torch.nn.modules as modules
 import torch.optim as optim
+import torch.nn.functional as F
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import argparse
@@ -28,7 +29,7 @@ parser.add_argument('--ksize', type=int, default=5,
                     help='kernel size (default: 5)')
 parser.add_argument('--levels', type=int, default=4,
                     help='# of levels (default: 4)')
-parser.add_argument('--log-interval', type=int, default=100, metavar='N',
+parser.add_argument('--log_interval', type=int, default=20, metavar='N',
                     help='report interval (default: 100')
 parser.add_argument('--lr', type=float, default=1e-3,
                     help='initial learning rate (default: 1e-3)')
@@ -52,8 +53,8 @@ torch.manual_seed(args.seed)
 """
 模型的各类参数
 """
-# 输入序列的长度
-input_size = 88
+# 输入序列的通道数
+input_size = 200
 # 设置每一层的通道数
 n_channels = [args.nhid] * args.levels
 # 卷积核大小
@@ -68,6 +69,8 @@ batch_size = args.batch_size
 epochs = args.epochs
 # 模型的学习率
 lr = args.lr
+# 序列长度
+seq_length = 316
 
 """
 构建模型的数据
@@ -105,9 +108,31 @@ optimizer = getattr(optim, args.optim)(model.parameters(), lr=lr)
 # 训练函数
 def train(ep):
     train_loss = 0
+    steps = 0
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
-        print('')
+        # 设置到GPU
+        data = data.transpose(1, 2).requires_grad_().to(device)
+        target = target.to(device)
+
+        optimizer.zero_grad()
+        output = model(data)
+        loss = F.nll_loss(output, target)
+        loss.backward()
+        if args.clip > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+        optimizer.step()
+        train_loss += loss
+        steps += seq_length
+        if batch_idx > 0 and batch_idx % args.log_interval == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tSteps: {}'.format(
+                ep,
+                batch_idx * batch_size,
+                len(train_loader.dataset),
+                100. * batch_idx / len(train_loader),
+                train_loss.item() / args.log_interval,
+                steps))
+            train_loss = 0
 
 
 # 测试函数
@@ -118,9 +143,9 @@ def test():
 if __name__ == '__main__':
     for epoch in range(1, epochs + 1):
         train(epoch)
-        test()
-        # 动态修改学习率
-        if epoch % 10 == 0:
-            lr /= 10
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr
+        # test()
+        # # 动态修改学习率
+        # if epoch % 10 == 0:
+        #     lr /= 10
+        #     for param_group in optimizer.param_groups:
+        #         param_group['lr'] = lr
