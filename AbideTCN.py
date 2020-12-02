@@ -17,8 +17,8 @@ from data.ABIDE.AbideData import AbideData
 模型运行时的参数
 """
 parser = argparse.ArgumentParser(description='TCN Modeling - Abide')
-parser.add_argument('--batch_size', type=int, default=64, metavar='N',
-                    help='batch size (default: 64)')
+parser.add_argument('--batch_size', type=int, default=16, metavar='N',
+                    help='batch size (default: 16)')
 parser.add_argument('--dropout', type=float, default=0.25,
                     help='dropout applied to layers (default: 0.25)')
 parser.add_argument('--clip', type=float, default=0.2,
@@ -29,8 +29,8 @@ parser.add_argument('--ksize', type=int, default=5,
                     help='kernel size (default: 5)')
 parser.add_argument('--levels', type=int, default=4,
                     help='# of levels (default: 4)')
-parser.add_argument('--log_interval', type=int, default=20, metavar='N',
-                    help='report interval (default: 100')
+parser.add_argument('--log_interval', type=int, default=40, metavar='N',
+                    help='report interval (default: 40')
 parser.add_argument('--lr', type=float, default=1e-3,
                     help='initial learning rate (default: 1e-3)')
 parser.add_argument('--optim', type=str, default='Adam',
@@ -88,14 +88,14 @@ for i in hdf5_dataset.keys():
     dataset_x.append(data_item_x)
     dataset_y.append(data_item_y)
 # 把所有数据增加padding
-dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0)
-dataset_y = torch.tensor(dataset_y, dtype=torch.long)
+# dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0)
+# dataset_y = torch.tensor(dataset_y, dtype=torch.long)
 # 把数据按照7:3比例进行拆分
 train_x, test_x, train_y, test_y = train_test_split(dataset_x, dataset_y, test_size=0.3, shuffle=True)
-abideData_train = AbideData(train_x, train_y)
-abideData_test = AbideData(test_x, test_y)
-train_loader = DataLoader(dataset=abideData_train, batch_size=batch_size, shuffle=True)
-test_loader = DataLoader(dataset=abideData_test, batch_size=batch_size, shuffle=True)
+# abideData_train = AbideData(train_x, train_y)
+# abideData_test = AbideData(test_x, test_y)
+# train_loader = DataLoader(dataset=abideData_train, batch_size=batch_size, shuffle=True)
+# test_loader = DataLoader(dataset=abideData_test, batch_size=batch_size, shuffle=True)
 
 """
 创建模型
@@ -108,31 +108,58 @@ optimizer = getattr(optim, args.optim)(model.parameters(), lr=lr)
 # 训练函数
 def train(ep):
     train_loss = 0
-    steps = 0
+    count = 0
     model.train()
-    for batch_idx, (data, target) in enumerate(train_loader):
-        # 设置到GPU
-        data = data.transpose(1, 2).requires_grad_().to(device)
-        target = target.to(device)
-
+    # 获得训练数据的索引
+    train_idx_list = np.arange(len(train_x), dtype=np.int32)
+    # 打乱索引
+    np.random.shuffle(train_idx_list)
+    for idx in train_idx_list:
+        # 获取训练数据
+        data = train_x[idx].transpose(0, 1).requires_grad_().to(device)
+        target = torch.tensor([train_y[idx]], device=device)
         optimizer.zero_grad()
-        output = model(data)
+        output = model(data.unsqueeze(0))
         loss = F.nll_loss(output, target)
         loss.backward()
         if args.clip > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         optimizer.step()
         train_loss += loss
-        steps += seq_length
-        if batch_idx > 0 and batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tSteps: {}'.format(
+        count += output.size(0)
+
+        if idx > 0 and idx % args.log_interval == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 ep,
-                batch_idx * batch_size,
-                len(train_loader.dataset),
-                100. * batch_idx / len(train_loader),
-                train_loss.item() / args.log_interval,
-                steps))
+                count,
+                len(train_x),
+                100. * count / len(train_x),
+                train_loss.item() / args.log_interval))
             train_loss = 0
+
+    # for batch_idx, (data, target) in enumerate(train_loader):
+    #     # 设置到GPU
+    #     data = data.transpose(1, 2).requires_grad_().to(device)
+    #     target = target.to(device)
+    #
+    #     optimizer.zero_grad()
+    #     output = model(data)
+    #     loss = F.nll_loss(output, target)
+    #     loss.backward()
+    #     if args.clip > 0:
+    #         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+    #     optimizer.step()
+    #     train_loss += loss
+    #     steps += seq_length
+    #     if batch_idx > 0 and batch_idx % args.log_interval == 0:
+    #         print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tSteps: {}'.format(
+    #             ep,
+    #             batch_idx * batch_size,
+    #             len(train_loader.dataset),
+    #             100. * batch_idx / len(train_loader),
+    #             train_loss.item() / args.log_interval,
+    #             steps))
+    #         train_loss = 0
 
 
 # 测试函数
