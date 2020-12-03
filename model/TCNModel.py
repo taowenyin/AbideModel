@@ -121,5 +121,4 @@ class TCN(modules.Module):
         """Inputs have to have dimension (N, C_in, L_in)"""
         y1 = self.tcn(inputs)  # input should have dimension (N, C, L)
         o = self.linear(y1[:, :, -1])
-        return F.softmax(o, dim=1)
-        # return F.log_softmax(o, dim=1)
+        return F.log_softmax(o, dim=1)

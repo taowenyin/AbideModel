@@ -143,50 +143,54 @@ def train(ep):
     return train_loss / len(train_x)
 
 
-    # for batch_idx, (data, target) in enumerate(train_loader):
-    #     # 设置到GPU
-    #     data = data.transpose(1, 2).requires_grad_().to(device)
-    #     target = target.to(device)
-    #
-    #     optimizer.zero_grad()
-    #     output = model(data)
-    #     loss = F.nll_loss(output, target)
-    #     loss.backward()
-    #     if args.clip > 0:
-    #         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-    #     optimizer.step()
-    #     train_loss += loss
-    #     steps += seq_length
-    #     if batch_idx > 0 and batch_idx % args.log_interval == 0:
-    #         print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tSteps: {}'.format(
-    #             ep,
-    #             batch_idx * batch_size,
-    #             len(train_loader.dataset),
-    #             100. * batch_idx / len(train_loader),
-    #             train_loss.item() / args.log_interval,
-    #             steps))
-    #         train_loss = 0
-
-
 # 测试函数
 def test():
-    print('xxx')
+    model.eval()
+    total_loss = 0
+    count = 0
+    correct = 0
+    # 获得测试数据的索引
+    test_idx_list = np.arange(len(test_x), dtype=np.int32)
+    with torch.no_grad():
+        for idx in test_idx_list:
+            # 获取测试数据
+            data = test_x[idx].transpose(0, 1).requires_grad_().to(device)
+            target = torch.tensor([test_y[idx]], device=device)
+            output = model(data.unsqueeze(0))
+            total_loss += F.nll_loss(output, target)
+            count += output.size(0)
+            # 获取结果中最大值的索引
+            pred = output.data.max(1, keepdim=True)[1]
+            # 把预测结果与标签进行形状统一，并判断是否相同
+            a = pred.eq(target.data.view_as(pred))
+            correct += pred.eq(target.data.view_as(pred)).sum()
 
+        test_loss = total_loss / count
+        print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
+            test_loss,
+            correct,
+            len(test_x),
+            100. * correct / len(test_x)))
+
+        return test_loss
 
 if __name__ == '__main__':
     # 保存训练损失
     train_loss = []
+    # 保存测试损失
+    test_loss = []
     for epoch in range(1, epochs + 1):
         train_loss.append(train(epoch))
-        # test()
-        # # 动态修改学习率
-        # if epoch % 10 == 0:
-        #     lr /= 10
-        #     for param_group in optimizer.param_groups:
-        #         param_group['lr'] = lr
+        test_loss.append(test())
+        # 动态修改学习率
+        if epoch % 10 == 0:
+            lr /= 10
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
 
     plt.plot(np.arange(len(train_loss)) + 1, train_loss, label='Train Loss')
-    plt.xlabel('Train EPOCH')
-    plt.ylabel('Train Loss')
+    plt.plot(np.arange(len(test_loss)) + 1, test_loss, label='Test Loss')
+    plt.xlabel('EPOCH')
+    plt.ylabel('Loss')
     plt.legend()
     plt.show()
