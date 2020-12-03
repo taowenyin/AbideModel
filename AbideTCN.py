@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 import argparse
 import utils.abide.prepare_utils as PrepareUtils
 import numpy as np
+import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
 from model.TCNModel import TCN
@@ -107,6 +108,7 @@ optimizer = getattr(optim, args.optim)(model.parameters(), lr=lr)
 
 # 训练函数
 def train(ep):
+    train_interval_loss = 0
     train_loss = 0
     count = 0
     model.train()
@@ -125,6 +127,7 @@ def train(ep):
         if args.clip > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         optimizer.step()
+        train_interval_loss += loss
         train_loss += loss
         count += output.size(0)
 
@@ -134,8 +137,11 @@ def train(ep):
                 count,
                 len(train_x),
                 100. * count / len(train_x),
-                train_loss.item() / args.log_interval))
-            train_loss = 0
+                train_interval_loss.item() / args.log_interval))
+            train_interval_loss = 0
+
+    return train_loss / len(train_x)
+
 
     # for batch_idx, (data, target) in enumerate(train_loader):
     #     # 设置到GPU
@@ -168,11 +174,19 @@ def test():
 
 
 if __name__ == '__main__':
+    # 保存训练损失
+    train_loss = []
     for epoch in range(1, epochs + 1):
-        train(epoch)
+        train_loss.append(train(epoch))
         # test()
         # # 动态修改学习率
         # if epoch % 10 == 0:
         #     lr /= 10
         #     for param_group in optimizer.param_groups:
         #         param_group['lr'] = lr
+
+    plt.plot(np.arange(len(train_loss)) + 1, train_loss, label='Train Loss')
+    plt.xlabel('Train EPOCH')
+    plt.ylabel('Train Loss')
+    plt.legend()
+    plt.show()
