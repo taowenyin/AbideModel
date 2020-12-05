@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, recall_score, f1_score
 from model.TCNModel import TCN
 from data.ABIDE.AbideData import AbideData
 
@@ -108,6 +109,7 @@ optimizer = getattr(optim, args.optim)(model.parameters(), lr=lr)
 
 # 训练函数
 def train(ep):
+    train_pred = []
     train_interval_loss = 0
     train_loss = 0
     count = 0
@@ -131,6 +133,9 @@ def train(ep):
         train_loss += loss
         count += output.size(0)
 
+        # 添加训练预测结果
+        train_pred.append(output.data.max(1, keepdim=True)[1][0].item())
+
         if idx > 0 and idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 ep,
@@ -140,12 +145,13 @@ def train(ep):
                 train_interval_loss.item() / args.log_interval))
             train_interval_loss = 0
 
-    return train_loss / len(train_x)
+    return train_loss / len(train_x), train_pred
 
 
 # 测试函数
 def test():
     model.eval()
+    test_pred = []
     total_loss = 0
     count = 0
     correct = 0
@@ -162,8 +168,10 @@ def test():
             # 获取结果中最大值的索引
             pred = output.data.max(1, keepdim=True)[1]
             # 把预测结果与标签进行形状统一，并判断是否相同
-            a = pred.eq(target.data.view_as(pred))
             correct += pred.eq(target.data.view_as(pred)).sum()
+
+            # 添加训练预测结果
+            test_pred.append(pred[0].item())
 
         test_loss = total_loss / count
         print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
@@ -172,25 +180,99 @@ def test():
             len(test_x),
             100. * correct / len(test_x)))
 
-        return test_loss
+        return test_loss, test_pred
+
 
 if __name__ == '__main__':
+    plt.figure(figsize=(16, 9))
+
     # 保存训练损失
-    train_loss = []
+    train_loss_data = []
+    # 准确率
+    train_accuracy_data = []
+    # 召回率
+    train_recall_data = []
+    # F1值
+    train_f1_data = []
+
     # 保存测试损失
-    test_loss = []
+    test_loss_data = []
+    # 准确率
+    test_accuracy_data = []
+    # 召回率
+    test_recall_data = []
+    # F1值
+    test_f1_data = []
+
     for epoch in range(1, epochs + 1):
-        train_loss.append(train(epoch))
-        test_loss.append(test())
+        train_loss, train_pred = train(epoch)
+        train_loss_data.append(train_loss)
+
+        test_loss, test_pred = test()
+        test_loss_data.append(test_loss)
+
+        # 保存训练的各类评价分数
+        train_accuracy_data.append(accuracy_score(train_y, train_pred))
+        train_recall_data.append(recall_score(train_y, train_pred))
+        train_f1_data.append(f1_score(train_y, train_pred))
+
+        # 保存测试的各类评价分数
+        test_accuracy_data.append(accuracy_score(test_y, test_pred))
+        test_recall_data.append(recall_score(test_y, test_pred))
+        test_f1_data.append(f1_score(test_y, test_pred))
+
         # 动态修改学习率
         if epoch % 10 == 0:
             lr /= 10
             for param_group in optimizer.param_groups:
                 param_group['lr'] = lr
 
-    plt.plot(np.arange(len(train_loss)) + 1, train_loss, label='Train Loss')
-    plt.plot(np.arange(len(test_loss)) + 1, test_loss, label='Test Loss')
+    plt.subplot(2, 4, 1)
+    plt.plot(np.arange(epochs) + 1, train_accuracy_data, label='Train Accuracy')
     plt.xlabel('EPOCH')
-    plt.ylabel('Loss')
+    plt.title('Train Accuracy')
     plt.legend()
+
+    plt.subplot(2, 4, 2)
+    plt.plot(np.arange(epochs) + 1, train_recall_data, label='Train Recall')
+    plt.xlabel('EPOCH')
+    plt.title('Train Recall')
+    plt.legend()
+
+    plt.subplot(2, 4, 3)
+    plt.plot(np.arange(epochs) + 1, train_f1_data, label='Train F1')
+    plt.xlabel('EPOCH')
+    plt.title('Train F1')
+    plt.legend()
+
+    plt.subplot(2, 4, 4)
+    plt.plot(np.arange(len(train_loss_data)) + 1, train_loss_data, label='Train Loss')
+    plt.xlabel('EPOCH')
+    plt.title('Train Loss')
+    plt.legend()
+
+    plt.subplot(2, 4, 5)
+    plt.plot(np.arange(epochs) + 1, test_accuracy_data, label='Test Accuracy')
+    plt.xlabel('EPOCH')
+    plt.title('Test Accuracy')
+    plt.legend()
+
+    plt.subplot(2, 4, 6)
+    plt.plot(np.arange(epochs) + 1, test_recall_data, label='Test Recall')
+    plt.xlabel('EPOCH')
+    plt.title('Test Recall')
+    plt.legend()
+
+    plt.subplot(2, 4, 7)
+    plt.plot(np.arange(epochs) + 1, test_f1_data, label='Test F1')
+    plt.xlabel('EPOCH')
+    plt.title('Test F1')
+    plt.legend()
+
+    plt.subplot(2, 4, 8)
+    plt.plot(np.arange(len(test_loss_data)) + 1, test_loss_data, label='Test Loss')
+    plt.xlabel('EPOCH')
+    plt.title('Test Loss')
+    plt.legend()
+
     plt.show()
