@@ -31,8 +31,10 @@ parser.add_argument('--ksize', type=int, default=5,
                     help='kernel size (default: 5)')
 parser.add_argument('--levels', type=int, default=4,
                     help='# of levels (default: 4)')
-parser.add_argument('--log_interval', type=int, default=32, metavar='N',
-                    help='report interval (default: 32')
+parser.add_argument('--log_interval', type=int, default=16, metavar='N',
+                    help='report interval (default: 16')
+# parser.add_argument('--log_interval', type=int, default=4, metavar='N',
+#                     help='report interval (default: 4')
 parser.add_argument('--lr', type=float, default=1e-3,
                     help='initial learning rate (default: 1e-3)')
 parser.add_argument('--optim', type=str, default='Adam',
@@ -90,20 +92,20 @@ for i in hdf5_dataset.keys():
     dataset_x.append(data_item_x)
     dataset_y.append(data_item_y)
 # 把所有数据增加padding
-dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0)
+# dataset_x = nn.utils.rnn.pad_sequence(dataset_x, batch_first=True, padding_value=0)
 dataset_y = torch.tensor(dataset_y, dtype=torch.long)
 # 把数据按照7:3比例进行拆分
 train_x, test_x, train_y, test_y = train_test_split(dataset_x, dataset_y, test_size=0.3, shuffle=True)
-abideData_train = AbideData(train_x, train_y)
-abideData_test = AbideData(test_x, test_y)
-train_loader = DataLoader(dataset=abideData_train, batch_size=batch_size, shuffle=True)
-test_loader = DataLoader(dataset=abideData_test, batch_size=batch_size, shuffle=True)
+# abideData_train = AbideData(train_x, train_y)
+# abideData_test = AbideData(test_x, test_y)
+# train_loader = DataLoader(dataset=abideData_train, batch_size=batch_size, shuffle=True)
+# test_loader = DataLoader(dataset=abideData_test, batch_size=batch_size, shuffle=True)
 
 """
 创建模型
 """
 model = TCN(input_size, n_classes, n_channels, kernel_size=kernel_size, dropout=args.dropout).to(device)
-criterion = modules.CrossEntropyLoss()
+criterion = modules.NLLLoss()
 optimizer = getattr(optim, args.optim)(model.parameters(), lr=lr)
 
 
@@ -118,17 +120,17 @@ def train(ep):
     train_idx_list = np.arange(len(train_x), dtype=np.int32)
     # 打乱索引
     np.random.shuffle(train_idx_list)
-    # for idx in train_idx_list:
-    for idx, (data_x, data_y) in enumerate(train_loader):
+    for idx in train_idx_list:
+    # for idx, (data_x, data_y) in enumerate(train_loader):
         # 获取训练数据
-        # data = train_x[idx].transpose(0, 1).unsqueeze(0).requires_grad_().to(device)
-        # target = torch.tensor([train_y[idx]], device=device)
-        data = data_x.transpose(1, 2).requires_grad_().to(device)
-        target = data_y.to(device)
+        data = train_x[idx].transpose(0, 1).unsqueeze(0).requires_grad_().to(device)
+        target = torch.tensor([train_y[idx]], device=device)
+        # data = data_x.transpose(1, 2).requires_grad_().to(device)
+        # target = data_y.to(device)
 
         optimizer.zero_grad()
         output = model(data)
-        loss = F.nll_loss(output, target)
+        loss = criterion(output, target)
         loss.backward()
         if args.clip > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
@@ -162,16 +164,16 @@ def test():
     # 获得测试数据的索引
     test_idx_list = np.arange(len(test_x), dtype=np.int32)
     with torch.no_grad():
-        # for idx in test_idx_list:
-        for idx, (data_x, data_y) in enumerate(test_loader):
+        for idx in test_idx_list:
+        # for idx, (data_x, data_y) in enumerate(test_loader):
             # 获取测试数据
-            # data = test_x[idx].transpose(0, 1).unsqueeze(0).requires_grad_().to(device)
-            # target = torch.tensor([test_y[idx]], device=device)
-            data = data_x.transpose(1, 2).requires_grad_().to(device)
-            target = data_y.to(device)
+            data = test_x[idx].transpose(0, 1).unsqueeze(0).requires_grad_().to(device)
+            target = torch.tensor([test_y[idx]], device=device)
+            # data = data_x.transpose(1, 2).requires_grad_().to(device)
+            # target = data_y.to(device)
 
             output = model(data)
-            total_loss += F.nll_loss(output, target)
+            total_loss += criterion(output, target)
             count += output.size(0)
             # 获取结果中最大值的索引
             pred = output.data.max(1, keepdim=True)[1]
@@ -282,5 +284,8 @@ if __name__ == '__main__':
     plt.xlabel('EPOCH')
     plt.title('Test Loss')
     plt.legend()
+
+    # plt.suptitle('Batch Train')
+    plt.suptitle('One Train')
 
     plt.show()
