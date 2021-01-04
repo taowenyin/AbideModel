@@ -273,7 +273,7 @@ if __name__ == '__main__':
 
     # 工具包的类型，19个参数获取选取不定数量
     # ['anat_thickness', 'roi_thickness']
-    desired_derivative_list = ['roi_thickness']
+    desired_derivative_list = ['anat_thickness']
 
     for desired_derivative in desired_derivative_list:
         # 构建保存地址
