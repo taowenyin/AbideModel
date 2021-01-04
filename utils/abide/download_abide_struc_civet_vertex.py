@@ -1,4 +1,4 @@
-# download_abide_functional.py
+# download_abide_struc_civet_vertex.py
 #
 # Author: Daniel Clark, 2015
 # Updated to python 3 and to support downloading by DX, Cameron Craddock, 2019
@@ -10,7 +10,7 @@ directory; users specify derivative, pipeline, strategy, and optionally
 age ranges, sex, site of interest
 
 Usage:
-    python download_abide_functional.py -d <derivative> -p <pipeline>
+    python download_abide_struc_civet_vertex.py -d <derivative> -p <pipeline>
                                      -s <strategy> -o <out_dir>
                                      [-lt <less_than>] [-gt <greater_than>]
                                      [-x <sex>] [-t <site>]
@@ -18,7 +18,7 @@ Usage:
 
 
 # 数据下载程序
-def collect_and_download(derivative, pipeline, strategy, out_dir, less_than, greater_than, site, sex, diagnosis):
+def collect_and_download(derivative, pipeline, out_dir, less_than, greater_than, site, sex, diagnosis):
     """
 
     Function to collect and download images from the ABIDE preprocessed
@@ -27,11 +27,9 @@ def collect_and_download(derivative, pipeline, strategy, out_dir, less_than, gre
     Parameters
     ----------
     derivative : string
-        derivative or measure of interest
+        surfaces or measure of interest
     pipeline : string
         pipeline used to process data of interest
-    strategy : string
-        noise removal strategy used to process data of interest
     out_dir : string
         filepath to a local directory to save files to
     less_than : float
@@ -52,10 +50,9 @@ def collect_and_download(derivative, pipeline, strategy, out_dir, less_than, gre
         this function does not return a value; it downloads data from
         S3 to a local directory
 
-    :param derivative: 
-    :param pipeline: 
-    :param strategy: 
-    :param out_dir: 
+    :param surfaces:
+    :param pipeline:
+    :param out_dir:
     :param less_than: 
     :param greater_than: 
     :param site: 
@@ -76,14 +73,9 @@ def collect_and_download(derivative, pipeline, strategy, out_dir, less_than, gre
 
     # 获取必要的工具类型、处理流程类型和策略
     derivative = derivative.lower()
-    pipeline = pipeline.lower()
-    strategy = strategy.lower()
 
     # 检查是否包含ROI，如果包含则保存后缀为'.1D'，否则就为'.nii.gz'
-    if 'roi' in derivative:
-        extension = '.1D'
-    else:
-        extension = '.nii.gz'
+    extension = '.txt'
 
     # If output path doesn't exist, create it
     if not os.path.exists(out_dir):
@@ -156,7 +148,7 @@ def collect_and_download(derivative, pipeline, strategy, out_dir, less_than, gre
         # Test age range
         if greater_than < row_age < less_than:
             filename = row_file_id + '_' + derivative + extension
-            s3_path = '/'.join([s3_prefix, 'Outputs', pipeline, strategy, derivative, filename])
+            s3_path = '/'.join([s3_prefix, 'Outputs', pipeline, 'surfaces_' + derivative, filename])
             print('Adding {0} to download queue...'.format(s3_path))
             s3_paths.append(s3_path)
         else:
@@ -203,18 +195,6 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--tdc', required=False, default=False, action='store_true',
                         help='Only download data for participants who are typically developing controls.'
                              ' Specifying neither or both -a and -c will download data from all participants.')
-    # # 工具包的类型，见download_abide_preproc_guide.txt
-    # parser.add_argument('-d', '--derivative', required=True, type=str,
-    #                     help='Derivative of interest (e.g. \'reho\')')
-    # # 流程类型，，见download_abide_preproc_guide.txt
-    # parser.add_argument('-p', '--pipeline', nargs=1, required=True, type=str,
-    #                     help='Pipeline used to preprocess the data (e.g. \'cpac\')')
-    # # 策略类型，见download_abide_preproc_guide.txt
-    # parser.add_argument('-s', '--strategy', nargs=1, required=True, type=str,
-    #                     help='Noise-removal strategy used during preprocessing (e.g. \'nofilt_noglobal\'')
-    # # 保存数据的文件夹
-    # parser.add_argument('-o', '--out_dir', nargs=1, required=True, type=str,
-    #                     help='Path to local folder to download files to')
 
     # 可选参数
     # 小于某个年龄段
@@ -234,17 +214,6 @@ if __name__ == '__main__':
 
     # 解析参数
     args = parser.parse_args()
-
-    # 初始化必选参数
-
-    # # 初始化获取的工具链
-    # desired_derivative = args.derivative[0].lower()
-    # # 初始化获取的流程
-    # desired_pipeline = args.pipeline[0].lower()
-    # # 初始化获取的策略
-    # desired_strategy = args.strategy[0].lower()
-    # # 初始化保存数据的地址
-    # download_data_dir = os.path.abspath(args.out_dir[0])
 
     # 初始化可选参数
 
@@ -294,29 +263,20 @@ if __name__ == '__main__':
         print('No sex specified, using all sexes...')
 
     # functional_data_dir = os.path.abspath("../../data/ABIDE/functionals/cpac/filt_global/")
-    save_data_dir = os.path.abspath("../../data/ABIDE/data/functionals/")
+    save_data_dir = os.path.abspath("../../data/ABIDE/data/structurals/")
 
-    # 获取流程类别，4个参数中的一个：ccs、cpac、dparsf、niak
-    desired_pipeline = 'cpac'
+    # 获取流程类别，1个参数中的一个：ants
+    desired_pipeline = 'civet'
 
-    # 获取策略类别，4个参数中的一个：filt_global、filt_noglobal、nofilt_global、nofilt_noglobal
-    desired_strategy = 'filt_global'
-
-    # 工具包的类型，19个参数获取选取不定数量
-    # ['alff', 'degree_binarize', 'degree_weighted', 'eigenvector_binarize',
-    # 'eigenvector_weighted', 'falff', 'func_mask', 'func_mean', 'func_preproc',
-    # 'lfcd', 'reho', 'rois_aal', 'rois_cc200', 'rois_cc400', 'rois_dosenbach160',
-    # 'rois_ez', 'rois_ho', 'rois_tt', 'vmhc' ]
-    desired_derivative_list = ['alff']
-
-    'https://s3.amazonaws.com/fcp-indi/data/Projects/ABIDE_Initiative/Outputs/cpac/filt_global/alff/Pitt_0050004_alff.nii.gz'
+    # 表面的类型，6个参数获取选取不定数量
+    # ['mid_surface_rsl_left_native_area_40mm', 'mid_surface_rsl_right_native_area_40mm',
+    # 'native_pos_rsl_asym_hemi', 'surface_rsl_left_native_volume_40mm', 'surface_rsl_right_native_volume_40mm']
+    desired_derivative_list = ['mid_surface_rsl_left_native_area_40mm']
 
     for desired_derivative in desired_derivative_list:
         # 构建保存地址
-        output_data_dir = os.path.join(save_data_dir, desired_pipeline)
-        output_data_dir = os.path.join(output_data_dir, desired_strategy)
-        output_data_dir = os.path.join(output_data_dir, desired_derivative)
+        output_data_dir = os.path.join(save_data_dir, desired_pipeline, 'vertex', desired_derivative)
 
         # 下载数据
-        collect_and_download(desired_derivative, desired_pipeline, desired_strategy, output_data_dir, desired_age_max,
+        collect_and_download(desired_derivative, desired_pipeline, output_data_dir, desired_age_max,
                              desired_age_min, desired_site, desired_sex, desired_diagnosis)

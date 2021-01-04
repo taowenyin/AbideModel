@@ -1,5 +1,6 @@
 .idea
 data/ABIDE/functionals
+data/ABIDE/data
 data/MNIST
 out/*.xlsx
 out/*.png

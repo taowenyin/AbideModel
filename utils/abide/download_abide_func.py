@@ -1,4 +1,4 @@
-# download_abide_structural_cortical_thickness.py.py
+# download_abide_func.py
 #
 # Author: Daniel Clark, 2015
 # Updated to python 3 and to support downloading by DX, Cameron Craddock, 2019
@@ -10,7 +10,7 @@ directory; users specify derivative, pipeline, strategy, and optionally
 age ranges, sex, site of interest
 
 Usage:
-    python download_abide_structural_cortical_thickness.py.py -d <derivative> -p <pipeline>
+    python download_abide_func.py -d <derivative> -p <pipeline>
                                      -s <strategy> -o <out_dir>
                                      [-lt <less_than>] [-gt <greater_than>]
                                      [-x <sex>] [-t <site>]
@@ -307,9 +307,8 @@ if __name__ == '__main__':
     # 'eigenvector_weighted', 'falff', 'func_mask', 'func_mean', 'func_preproc',
     # 'lfcd', 'reho', 'rois_aal', 'rois_cc200', 'rois_cc400', 'rois_dosenbach160',
     # 'rois_ez', 'rois_ho', 'rois_tt', 'vmhc' ]
-    desired_derivative_list = ['alff']
-
-    'https://s3.amazonaws.com/fcp-indi/data/Projects/ABIDE_Initiative/Outputs/cpac/filt_global/alff/Pitt_0050004_alff.nii.gz'
+    desired_derivative_list = ['rois_aal', 'rois_cc200', 'rois_cc400', 'rois_dosenbach160',
+                               'rois_ez', 'rois_ho', 'rois_tt']
 
     for desired_derivative in desired_derivative_list:
         # 构建保存地址
